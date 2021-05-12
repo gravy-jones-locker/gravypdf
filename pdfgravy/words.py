@@ -1,7 +1,8 @@
-from nest import Nest, Nested
-from table import Table
+from .nest import Nest, Nested
+from .table import Table
 import re
-import helper
+import statistics as stats
+from . import helper
 
 class Words(Nest, Nested):
 
@@ -19,6 +20,21 @@ class Words(Nest, Nested):
 
         return len([x for x in hits if x])
 
+    def shares_header(self, header):
+        """
+        Check whether the header structure is (roughly) matched.
+        """
+        return len(self) > 3  # TODO improve this..
+
+    def get_text(self):
+        return ' '.join([x.text for x in self])
+
+class Header(Words):
+
+    def __init__(self, row, pattern):
+        helper.store_attrs(self, row)  # Copy everything from the row
+        self.pattern = pattern
+
     def cvt_header2tbl(self, prev_header, page):
         """
         Complete info from surroundings and return table.
@@ -34,17 +50,21 @@ class Words(Nest, Nested):
             elif hi.i == len(page.grid.rows) - 1:
                 title = 'n/a'
 
-        return Table(page, self.agg('y1', 'max'), lo.agg('y0', 'min'), title)
+        return Table(page, self, lo, title)
 
-    def shares_header(self, header):
+    def lbls(self, from_right=False):
         """
-        Check whether the header structure is (roughly) matched.
+        Iterates over words matching the supplied pattern.
         """
-        return len(self) > 3  # TODO improve this..
+        for word in sorted(self, key=lambda x: x.x0, reverse=from_right):
+            if not word.lookup(self.pattern):
+                continue
+            yield word
 
-    def get_text(self):
-        return ' '.join([x.text for x in self])
-
+    @helper.lazy_property
+    def period(self):
+        self._period = stats.median([x.midx for x in self.lbls()])
+            
 class Word(Nest, Nested):
 
     def lookup(self, lookup_strs):
@@ -82,12 +102,6 @@ class Word(Nest, Nested):
         return ''.join([x.text for x in self])   
 
 class Char(Nested):
-
-    def starts_new_word(self, word):
-        """
-        Check whether x/y distance from previous chars suggests a new word.
-        """
-        pass
 
     def is_wspace(self):
         """

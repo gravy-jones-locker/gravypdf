@@ -4,8 +4,8 @@ from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfinterp import PDFResourceManager
 from pdfminer.layout import LAParams
 
-from settings import Settings
-from page import Page
+from .settings import Settings
+from .page import Page
 
 class PDF:
 
@@ -23,8 +23,8 @@ class PDF:
         self.laparam = LAParams()
         self.rsrcmgr  = PDFResourceManager()
 
-        stream = open(fpath, 'rb')
-        self.doc = PDFDocument(PDFParser(stream))
+        self.stream = open(fpath, 'rb')
+        self.doc = PDFDocument(PDFParser(self.stream))
             
         self.load_pages()  # Read stream while file open
     

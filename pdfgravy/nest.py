@@ -1,10 +1,19 @@
 import itertools
 import re
 import numpy as np
-import helper
+from . import helper
 from collections.abc import MutableSequence
 
-class Nest(MutableSequence):
+class BasePDF:
+    @property
+    def midx(self):
+        return (self.x1 + self.x0) / 2
+
+    @property
+    def w(self):  # Width from furthermost left --> right points
+        return self.x1 - self.x0
+
+class Nest(MutableSequence, BasePDF):
 
     """
     Text/edges and other sub (pdfminer) elements are grouped into Nests. These
@@ -35,29 +44,24 @@ class Nest(MutableSequence):
                 for i, elem in enumerate(func(cls, *args, **kwargs)):
                     if kwargs.get('store_parent'):
                         elem.parent = out
-                    out.addtwig(elem, index=i)
+                    out.addtwigs(elem)
                 return out
             return inner
 
     def __init__(self, *elems, **kwargs):
         """
         Compile an iterable into a nest for the first time.
-        """
-        if kwargs.get('chain', False):
-            elems = list(itertools.chain.from_iterable(elems))
-        if kwargs.pop('copy', False):  
-            self._ls = elems
-            return  # Take types/idx from the copied nest
-        
+        """        
         self._ls = []
         for i, elem in enumerate(elems):
+            if kwargs.get('cast'):
             
-            if helper.chk_sys_it(elem):
-                elem = type(self)(*elem, **kwargs)  
-            elif not isinstance(elem, self.nested):
-                elem = self.nested(elem)
+                if helper.chk_sys_it(elem):
+                    elem = type(self)(*elem, **kwargs)  
+                elif not isinstance(elem, self.nested):
+                    elem = self.nested(elem)
 
-            self.addtwig(elem, i)
+            self.addtwigs(elem)
         
         self.set_coords()
 
@@ -77,19 +81,30 @@ class Nest(MutableSequence):
 
     def __getitem__(self, index):
         if isinstance(index, slice):
-            return type(self)(*self._ls[index], copy=True)
+            return self.copy(_ls=self._ls[index])
         return self._ls.__getitem__(index)
 
     def __iter__(self):
         for obj in self._ls:
             yield obj
 
-    def addtwig(self, elem, index):
+    def copy(self, **kwargs):
+        """
+        Combine stored attrs and modifications in kwargs for new nest.
+        """
+        out = type(self)()
+        for attr in ['parent', 'i', '_ls']:
+            v = kwargs[attr] if attr in kwargs else getattr(self, attr, None)
+            setattr(out, attr, v)
+        return out
+
+    def addtwigs(self, *elems):
         """
         Append new element to sequence and assign index as default.
         """
-        elem.i = index
-        self._ls.append(elem)
+        for elem in elems:
+            elem.i = len(self)
+            self._ls.append(elem)
 
     def agg(self, attr, qnt='median'):
         """
@@ -111,7 +126,7 @@ class Nest(MutableSequence):
         self.y1 = self.agg('y1', 'max')
 
     @Decorators.rehome
-    def cluster(self, fn, tol=5, store_parent=True):
+    def cluster(self, fn, tol=5, reversed=False, store_parent=True):
         """
         Group nested elements by the attribute and function specified.
         """
@@ -121,21 +136,21 @@ class Nest(MutableSequence):
             if not any([x.clust(elem, fn, tol) for x in ref_ls]):
                 ref_ls.append(elem)
 
-        for ref in sorted(ref_ls, key=lambda x: fn(x)):
+        for ref in sorted(ref_ls, key=lambda x: fn(x), reverse=reversed):
             cluster_ls = [x for x in self if x.clust(ref, fn, tol)]
             
             yield type(self)(*cluster_ls)
 
     @Decorators.rehome
-    def denest(self, attr='__len__', flatten=False):
+    def denest(self, attr='__len__', flatten=False, cast=False):
         """
         Expose all nested elements according to function specified.
         """
         for elem in self:
             
             if hasattr(elem, attr):
-                sub_it = elem if attr == '__len__' else getattr(elem, attr)
-                yield from type(self)(*sub_it).denest(attr)        
+                sub = elem if attr == '__len__' else getattr(elem, attr)
+                yield from type(self)(*sub, cast=cast).denest(attr, cast=cast)        
             
             if not hasattr(elem, attr) or not flatten:
                 yield elem
@@ -146,14 +161,44 @@ class Nest(MutableSequence):
         Return a filtered nest according to the keys/values in the mapping.
         """
         for elem in self:
-            if not all([getattr(elem, k) == v for k, v in filters.items()]):
+            if not all([getattr(elem, k, '') == v for k, v in filters.items()]):
                 continue
             if fn and not fn(elem, *args):
                 continue
         
             yield elem
 
-class Nested:
+    def mega_cluster(self, orientation, tol):
+        """
+        Apply multiple clustering strategies to accommodate alignments.
+        """
+        if orientation == 'horizontal':
+            vars = ['x.x0', 'x.x1', 'x.midx']
+        else:
+            vars = ['x.y0', 'x.y1', 'x.midy']
+
+        out = type(self)()
+        
+        for var in vars:
+            clusters = self.cluster(lambda x: eval(var), tol)            
+            out.addtwigs(*clusters)
+
+        return out
+
+    def apply_nested(self, fn, *args, **kwargs):
+        """
+        Apply some function to all the nested elements in the nest.
+        """
+        for i, obj in enumerate(self):
+            self[i] = fn(obj, *args, **kwargs)
+
+    def get_sorted(self, fn, i=0, reversed=False):
+        """
+        Get the indexed element when sorted by the specified function.
+        """
+        return sorted(self, key=fn, reverse=reversed)[i]
+
+class Nested(BasePDF):
 
     def __init__(self, elem):
         """
@@ -173,14 +218,14 @@ class Nested:
 
         return abs(val - ref_val) <= tol
 
-    def chk_intersection(self, y0=None, y1=None, x0=None, x1=None):
+    def chk_intersection(self, ref):
         """
         Return True if the element is inside the coordinates passed.
         """
-        if x0 and self.x1 < x0 or x1 and self.x0 > x1:
+        if ref.x0 and self.x1 <= ref.x0 or ref.x1 and self.x0 >= ref.x1:
             return False
         
-        if y0 and self.y1 < y0 or y1 and self.y0 > y1:
+        if ref.y0 and self.y1 <= ref.y0 or ref.y1 and self.y0 >= ref.y1:
             return False
 
         return True

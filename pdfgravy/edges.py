@@ -1,4 +1,4 @@
-from nest import Nest, Nested
+from .nest import Nest, Nested
 
 class Edges(Nest):
 
