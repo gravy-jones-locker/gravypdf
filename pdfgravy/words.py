@@ -1,5 +1,4 @@
 from .nest import Nest, Nested
-from .table import Table
 import re
 import statistics as stats
 from . import helper
@@ -32,8 +31,17 @@ class Words(Nest, Nested):
 class Header(Words):
 
     def __init__(self, row, pattern):
-        helper.store_attrs(self, row)  # Copy everything from the row
+        """
+        Take everything from the row and store a filtered Nest of known labels.
+        """
+        helper.store_attrs(self, row)
+        
         self.pattern = pattern
+        
+        self.lbls = self.filter(Word.lookup, self.pattern)
+        
+        self.lbls.sort(key=lambda x:x.x0)
+        self.lbls.reset_idx()
 
     def cvt_header2tbl(self, prev_header, page):
         """
@@ -50,20 +58,12 @@ class Header(Words):
             elif hi.i == len(page.grid.rows) - 1:
                 title = 'n/a'
 
-        return Table(page, self, lo, title)
-
-    def lbls(self, from_right=False):
-        """
-        Iterates over words matching the supplied pattern.
-        """
-        for word in sorted(self, key=lambda x: x.x0, reverse=from_right):
-            if not word.lookup(self.pattern):
-                continue
-            yield word
+        return page, self, lo, title
 
     @helper.lazy_property
     def period(self):
-        self._period = stats.median([x.midx for x in self.lbls()])
+        fn = lambda x, y: abs(x.x0 - y.x0)
+        self._period = stats.median([x for x in self.lbls.get_delta(fn)])
             
 class Word(Nest, Nested):
 

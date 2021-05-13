@@ -10,6 +10,10 @@ class BasePDF:
         return (self.x1 + self.x0) / 2
 
     @property
+    def midy(self):
+        return (self.y1 + self.y0) / 2
+
+    @property
     def w(self):  # Width from furthermost left --> right points
         return self.x1 - self.x0
 
@@ -88,6 +92,9 @@ class Nest(MutableSequence, BasePDF):
         for obj in self._ls:
             yield obj
 
+    def sort(self, **kwargs):
+        self._ls = sorted(self._ls, **kwargs)
+
     def copy(self, **kwargs):
         """
         Combine stored attrs and modifications in kwargs for new nest.
@@ -105,6 +112,13 @@ class Nest(MutableSequence, BasePDF):
         for elem in elems:
             elem.i = len(self)
             self._ls.append(elem)
+
+    def reset_idx(self):
+        """
+        Reset element indices to reflect current order in Nest.
+        """
+        for i, elem in enumerate(self):
+            elem.i = i
 
     def agg(self, attr, qnt='median'):
         """
@@ -126,7 +140,7 @@ class Nest(MutableSequence, BasePDF):
         self.y1 = self.agg('y1', 'max')
 
     @Decorators.rehome
-    def cluster(self, fn, tol=5, reversed=False, store_parent=True):
+    def cluster(self, fn, tol=5, inv=False, store_parent=True):
         """
         Group nested elements by the attribute and function specified.
         """
@@ -136,7 +150,7 @@ class Nest(MutableSequence, BasePDF):
             if not any([x.clust(elem, fn, tol) for x in ref_ls]):
                 ref_ls.append(elem)
 
-        for ref in sorted(ref_ls, key=lambda x: fn(x), reverse=reversed):
+        for ref in sorted(ref_ls, key=lambda x: fn(x), reverse=inv):
             cluster_ls = [x for x in self if x.clust(ref, fn, tol)]
             
             yield type(self)(*cluster_ls)
@@ -168,7 +182,29 @@ class Nest(MutableSequence, BasePDF):
         
             yield elem
 
-    def mega_cluster(self, orientation, tol):
+    def split(self, fn=None, *args, **filters):
+        """
+        Apply filter and return *two* nests: true results, false results.
+        """
+        out_i  = self.filter(fn, *args, **filters)
+        out_ii = self.copy(_ls=[x for x in self if x not in out_i])
+
+        return out_i, out_ii
+
+    def get_delta(self, fn, inv=False):
+        """
+        Return the result of the function passed when applied to consecutive
+        elements in order (as a list of values/elements).
+        """
+        out = []
+        for i, elem in enumerate(self):
+            if (i == len(self) - 1 and not inv) or (i == 0 and inv):
+                continue  # True if no elements left to compare
+            i_ref = i - 1 if inv else i + 1
+            out.append(fn(elem, self[i_ref]))
+        return out
+
+    def mega_cluster(self, orientation, tol, flatten=False):
         """
         Apply multiple clustering strategies to accommodate alignments.
         """
@@ -180,8 +216,11 @@ class Nest(MutableSequence, BasePDF):
         out = type(self)()
         
         for var in vars:
-            clusters = self.cluster(lambda x: eval(var), tol)            
-            out.addtwigs(*clusters)
+            clusters = self.cluster(lambda x: eval(var), tol)
+            if flatten:         
+                out.addtwigs(*clusters)
+            else:
+                out.addtwigs(clusters)
 
         return out
 
@@ -192,11 +231,11 @@ class Nest(MutableSequence, BasePDF):
         for i, obj in enumerate(self):
             self[i] = fn(obj, *args, **kwargs)
 
-    def get_sorted(self, fn, i=0, reversed=False):
+    def get_sorted(self, fn, i=0, inv=False):
         """
         Get the indexed element when sorted by the specified function.
         """
-        return sorted(self, key=fn, reverse=reversed)[i]
+        return sorted(self, key=fn, reverse=inv)[i]
 
 class Nested(BasePDF):
 

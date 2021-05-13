@@ -2,12 +2,14 @@ from .settings import Settings
 from .nest import Nested, Nest
 from . import helper
 import statistics as stats
+from .words import Words
 
 class Grid:
 
     """
     Parent class for conceptualisation of page area as matrix of edges/cells.
     """
+
     def __init__(self, page, x0=None, x1=None, y0=None, y1=None):
         """
         Store position and cut relevant features from page.
@@ -35,22 +37,33 @@ class Grid:
         """
         return nest.filter(Nested.chk_intersection, self)
 
-    def find_word_cols(self, word_tol):
+    @helper.ignore_empty(chk_attr='words', out_type=Words)
+    def find_w_cols(self, word_tol):
         """
         Use multiple clustering and subsequent separation to find cols of words.
         """
         # Cluster words by multiple x pts (l/r/mid) --> [cluster, cluster..]
-        h_clusters = self.words.mega_cluster('horizontal', word_tol)
+        h_clusters = self.words.mega_cluster('horizontal', word_tol, True)
 
         # Then cluster each of those by their midpoint w/ large tolerance -->
         # [[cluster, cluster..], [cluster, cluster..]..]
 
         col_tol = stats.median([x.w for x in self.words]) / 2
-        
-        self.cols = h_clusters.cluster(lambda x: x.midx, col_tol)
+
+        fn = lambda x: x.agg('midx', 'median')
+        self.w_cols = h_clusters.cluster(fn, col_tol)
 
         # Then take the largest of each to get one cluster for each column
-        self.cols.apply_nested(Nest.get_sorted, len, 0, reversed=True)
+        self.w_cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
+
+    @helper.ignore_empty(chk_attr='words', out_type=Words)
+    def find_w_rows(self, word_tol):
+        """
+        As above (find_w_cols) but slimmed and applied vertically for rows.
+        """
+        self.w_rows = self.words.mega_cluster('vertical', word_tol)
+        
+        self.w_rows.apply_nested(Nest.get_sorted, len, 0, inv=True)
 
     @helper.lazy_property
     def lines_h(self):

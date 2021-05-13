@@ -2,6 +2,7 @@ from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.converter import PDFPageAggregator
 from .nest import Nest
 from .edges import Edges
+from .table import Table
 from .grid import Grid
 from .words import Word, Words, Header
 from . import helper
@@ -108,7 +109,7 @@ class PageGrid(Grid):
         for i, row in header_rows.items():
             prev = header_rows[i - 1] if i > 0 else self.rows[0]
             
-            self.tbls[i] = row.cvt_header2tbl(prev, self.page)
+            self.tbls[i] = Table(*row.cvt_header2tbl(prev, self.page))
 
     def fill(self):
         """
@@ -119,3 +120,5 @@ class PageGrid(Grid):
             
             tbl.find_v_spokes()  # Work down from headers for vertical spokes
             tbl.find_h_spokes()  # Work across from labels for horiz spokes
+
+            tbl.consolidate_spokes()

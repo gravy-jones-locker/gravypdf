@@ -37,3 +37,18 @@ def chk_sys_it(it):
     Returns True if the input is a builtin iterable.
     """
     return hasattr(it, '__len__') and type(it).__module__ == 'builtins'
+
+def ignore_empty(chk_attr, out_type):
+    """
+    Apply the selected method and store result, storing empty if chk_attr
+    already empty.
+    """
+    def decorator(func):  # Multi-level required given class argument
+        def inner(cls, *args, **kwargs):
+            if not getattr(cls, chk_attr):
+                out_name = '_'.join(func.__name__.split('_')[1:])
+                setattr(cls, out_name, out_type())
+            else:
+                func(cls, *args, **kwargs)
+        return inner
+    return decorator
