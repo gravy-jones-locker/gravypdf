@@ -15,56 +15,66 @@ class Table(Grid):
 
         self.title = title.strip('\n \r')
 
+        self.spokes = Nest()
+        self.lbls = Nest()
+
     def __repr__(self):
         return f'{self.title}, {self.y0}, {self.y1}'
 
-    def find_v_spokes(self):
+    def find_lbls(self):
+        """
+        Find and distribute horizontal sublabels.
+        """
+        lbl_cut = self.header.lbls[0].x0
+        lbl_sub = self.get_sub(self.x0, lbl_cut, self.y0, self.y1)
+
+        for col in lbl_sub.w_cols[::-1]:
+            col_sub = self.get_sub(col.x0, col.x1, self.y0, self.y1)
+
+            col_sub.snap_w_rows()
+    
+    def find_v_spokes(self, off_l=0):
         """
         Find the columns of data which extend from each label in the top header
         row.
         """
-        self.v_spokes = Nest()
-
-        off_l = 0
         for lbl in self.header.lbls[::-1]:  # Iterate r --> l over known labels
-            
+
             # Split the grid to below/right of label and look for word cols
             xr = lbl.midx + self.header.period - off_l
             r = self.get_sub(x0=lbl.midx, x1=xr, y0=self.y0, y1=lbl.y0)
             
             # Then look to the left by a corresponding amount
             off_l = self.get_lbl_off(lbl, r.w_cols, self.header.period, 'midx')
-            
+
             xl = lbl.midx - self.header.period + off_l
             l = self.get_sub(x0=xl, x1=lbl.midx, y0=self.y0, y1=lbl.y0)
 
-            self.v_spokes.addtwigs(Spoke(lbl, *l.w_cols, *r.w_cols))
+            spokes = Spoke(lbl, *l.w_cols, *r.w_cols).split_v(self.lines_v)
+            self.spokes.addtwigs(spokes)     
 
     def find_h_spokes(self):
         """
         Find and label the horizontal spokes from the position of the values.
         """
-        self.h_spokes = Nest()
-
-        col_l = self.v_spokes[-1].get_sorted(lambda x: x.x0)
-
-        for val in col_l:  # Find closest horizontal label
-            sub = self.get_sub(x0=self.x0, x1=self.x1, y0=val.y0, y1=val.y1)
-            if len(sub.w_cols) < len(self.header.lbls):
-                continue  # Ignore any without the full complement of values
+        for lbl in self.lbls.inner():  # Go through inner column of labels
+            sub = self.get_sub(x0=lbl.x0, x1=self.x1, y0=lbl.y0, y1=lbl.y1)
             
-            lbls, data = sub.w_cols.split(lambda x: x.x0 < col_l.x0)
-            lbl = lbls.get_sorted(lambda x: abs(x.x1 - col_l.x0))  
-
-            self.h_spokes.addtwigs(Spoke(lbl, *data))
-
+            if len(sub.w_cols) < len(self.header.lbls):
+                continue  # Ignore any without the full compliment of values  
+            
+            spokes = Spoke(lbl, *sub.w_cols).split_h('\n')
+            self.spokes.addtwigs(spokes)
+        
     def get_sub(self, x0, x1, y0, y1):
         """
         Plot the columns of data which follow down from a label.
         """
         sub = Grid(self.page, x0=x0, x1=x1, y0=y0, y1=y1)
-        sub.find_w_cols(5)
-
+        
+        sub.w_cols = sub.get_w_cols(5)
+        sub.w_rows = sub.get_w_rows(5)
+        
         return sub
 
     def get_lbl_off(self, lbl, data, period, attr):
@@ -86,3 +96,9 @@ class Spoke(Nest):
         self.title = lbl.text
         
         super().__init__(*clusters)
+
+    def split_v(self, lns_v):
+        """
+        Split one vertical spoke into multiple subsidiaries.
+        """
+        return self

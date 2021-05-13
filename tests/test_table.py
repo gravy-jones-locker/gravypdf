@@ -31,5 +31,10 @@ class TableTest(BaseTest):
         assert spokes[1][2].text == '27.9\n'
         assert sum([spokes[2].x0, spokes[2].x1, spokes[2].y0, spokes[2].y1]) == 1143.1673599999997
 
+    def test_lbls(self):
+        self.page.grid.tbls[0].find_lbls()
+
+        assert 1 == 1
+
 if __name__ == '__main__':
     unittest.main()

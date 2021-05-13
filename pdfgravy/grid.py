@@ -37,11 +37,12 @@ class Grid:
         """
         return nest.filter(Nested.chk_intersection, self)
 
-    @helper.ignore_empty(chk_attr='words', out_type=Words)
-    def find_w_cols(self, word_tol):
+    def get_w_cols(self, word_tol):
         """
         Use multiple clustering and subsequent separation to find cols of words.
         """
+        if (not self.words): return Nest()
+
         # Cluster words by multiple x pts (l/r/mid) --> [cluster, cluster..]
         h_clusters = self.words.mega_cluster('horizontal', word_tol, True)
 
@@ -51,19 +52,23 @@ class Grid:
         col_tol = stats.median([x.w for x in self.words]) / 2
 
         fn = lambda x: x.agg('midx', 'median')
-        self.w_cols = h_clusters.cluster(fn, col_tol)
+        w_cols = h_clusters.cluster(fn, col_tol)
 
         # Then take the largest of each to get one cluster for each column
-        self.w_cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
+        w_cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
 
-    @helper.ignore_empty(chk_attr='words', out_type=Words)
-    def find_w_rows(self, word_tol):
+        return w_cols
+
+    def get_w_rows(self, word_tol):
         """
         As above (find_w_cols) but slimmed and applied vertically for rows.
         """
-        self.w_rows = self.words.mega_cluster('vertical', word_tol)
-        
-        self.w_rows.apply_nested(Nest.get_sorted, len, 0, inv=True)
+        if (not self.words): return Nest()
+
+        w_rows = self.words.mega_cluster('vertical', word_tol)
+        w_rows = w_rows.get_sorted(len, 0, inv=True)
+
+        return w_rows
 
     @helper.lazy_property
     def lines_h(self):

@@ -49,7 +49,8 @@ class Page:
 
     @helper.lazy_property
     def objects(self):
-        self._objects = Nest(*self.layout._objs).denest('_objs', cast=True)
+        self._objects = Nest(*self.layout._objs, cast=True)
+        self._objects = self._objects.denest('_objs', cast=True)
 
     @helper.lazy_property
     def lines(self):
@@ -117,8 +118,8 @@ class PageGrid(Grid):
         """
         for tbl in self.tbls.values():
             tbl.words.apply_nested(lambda x: x.rm_wspace())
+
+            tbl.find_lbls()
             
             tbl.find_v_spokes()  # Work down from headers for vertical spokes
             tbl.find_h_spokes()  # Work across from labels for horiz spokes
-
-            tbl.consolidate_spokes()
