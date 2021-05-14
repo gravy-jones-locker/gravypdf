@@ -20,7 +20,7 @@ class PDF:
         """
         self.settings = self.Settings(user_settings)
 
-        self.laparam = LAParams()
+        self.laparam = LAParams(char_margin=1)
         self.rsrcmgr  = PDFResourceManager()
 
         self.stream = open(fpath, 'rb')

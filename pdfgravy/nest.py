@@ -214,15 +214,19 @@ class Nest(MutableSequence, BasePDF):
             vars = ['x.y0', 'x.y1', 'x.midy']
 
         out = type(self)()
-        
+        max_len = 0
+        align = vars[2]
         for var in vars:
             clusters = self.cluster(lambda x: eval(var), tol)
+            if clusters and max([len(x) for x in clusters]) > max_len:
+                max_len = max([len(x) for x in clusters])
+                align = var[2:]
             if flatten:         
                 out.addtwigs(*clusters)
             else:
                 out.addtwigs(clusters)
 
-        return out
+        return out, align
 
     def apply_nested(self, fn, *args, **kwargs):
         """
@@ -248,7 +252,7 @@ class Nested(BasePDF):
         if type(elem).__name__.startswith('LT'):
             setattr(self, 'cvttype', type(elem).__name__)
 
-    def clust(self, ref, fn, tol):
+    def clust(self, ref, fn, tol=5):
         """
         Returns true if the two elements 'clust' - i.e are within clustering.
         """

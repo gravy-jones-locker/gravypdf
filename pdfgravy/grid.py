@@ -37,21 +37,20 @@ class Grid:
         """
         return nest.filter(Nested.chk_intersection, self)
 
-    def get_w_cols(self, word_tol):
+    def get_w_cols(self, w_tol):
         """
         Use multiple clustering and subsequent separation to find cols of words.
         """
         if (not self.words): return Nest()
-
         # Cluster words by multiple x pts (l/r/mid) --> [cluster, cluster..]
-        h_clusters = self.words.mega_cluster('horizontal', word_tol, True)
+        h_clusters, align = self.words.mega_cluster('horizontal', w_tol, True)
 
         # Then cluster each of those by their midpoint w/ large tolerance -->
         # [[cluster, cluster..], [cluster, cluster..]..]
 
-        col_tol = stats.median([x.w for x in self.words]) / 2
+        col_tol = stats.median([x.w for x in h_clusters]) / 2
 
-        fn = lambda x: x.agg('midx', 'median')
+        fn = lambda x: x.agg(align, 'median')
         w_cols = h_clusters.cluster(fn, col_tol)
 
         # Then take the largest of each to get one cluster for each column
@@ -61,14 +60,47 @@ class Grid:
 
     def get_w_rows(self, word_tol):
         """
-        As above (find_w_cols) but slimmed and applied vertically for rows.
+        As above (get_w_cols) but slimmed and applied vertically for rows.
         """
         if (not self.words): return Nest()
 
-        w_rows = self.words.mega_cluster('vertical', word_tol)
+        w_rows, align = self.words.mega_cluster('vertical', word_tol)
         w_rows = w_rows.get_sorted(len, 0, inv=True)
 
         return w_rows
+
+    def get_h_lbls(self):
+        """
+        Using available line/word data snap data into labels.
+        """
+        tol = (self.w_rows.y1 - self.w_rows.y0) / len(self.w_rows) / 2
+        rows = self.w_rows.cluster(lambda x: x.midy, tol)
+
+        ln_mids = self.lines_h.get_delta(lambda x, y: abs(x.midy + y.midy) / 2)
+        matches = []
+        for y in ln_mids:
+            if not any([x.midy - 5 <= y <= x.midy + 5 for x in rows]):
+                continue
+            matches.append(y)
+
+        lbls = Nest()
+        if len(matches) / (len(rows) - 2) > 0.8:
+            for i, ln in enumerate(self.lines_h[:-1]):
+                y1 = ln.y1
+                y0 = self.lines_h[i+1].y0
+
+                lbl = self.words.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
+                if len(lbl) > 0:
+                    lbls.append(lbl)
+        
+        for r in rows:
+            if any([r.chk_intersection(x) for x in lbls]):
+                continue
+            lbls.append(r)
+
+        lbls.set_coords()
+
+        return lbls
 
     @helper.lazy_property
     def lines_h(self):

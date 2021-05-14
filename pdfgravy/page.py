@@ -98,10 +98,10 @@ class PageGrid(Grid):
         Use header info to isolate coordinates of tables in page.
         """
         self.rows = self.words.cluster(lambda x: x.y1)
+        pattern = self.settings['header_pattern']
 
         header_rows = {}
         for i, row in enumerate(self.rows):
-            pattern = self.settings['header_pattern']
             score = row.score_incidence(pattern, True)
 
             if score > 2:  # True if header pattern reappears consecutively
