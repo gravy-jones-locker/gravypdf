@@ -1,9 +1,9 @@
+from pdfgravy.settings import Settings
 from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.converter import PDFPageAggregator
-from .nest import Nest
+from .nest import Nest, Nested
 from .edges import Edges
 from .table import Table
-from .grid import Grid
 from .words import Word, Words, Header
 from . import helper
 
@@ -29,10 +29,38 @@ class Page:
         """
         Divide the page into tables and extract the data therein.
         """
-        self.grid = PageGrid(self, user_settings)
-        self.grid.split()
+        self.tbls = {}
 
-        self.grid.fill()
+        settings = Table.Settings(user_settings)
+        
+        if settings['header_pattern']:            
+            self.split_by_headers()
+        if settings['remove_whitespace']:
+            self.words.apply_nested(lambda x: x.rm_wspace())
+
+        for i, (header, footer, title) in enumerate(self.tbls.values()):
+            self.tbls[i] = Table(self, header, footer, title, settings)
+
+        return self.tbls
+
+    def split_by_headers(self):
+        """
+        Use header info to isolate coordinates of tables in page.
+        """
+        rows = self.words.cluster(lambda x: x.y1)
+        pattern = self.settings['header_pattern']
+
+        header_rows = {}
+        for i, row in enumerate(rows):
+            score = row.score_incidence(pattern, True)
+
+            if score > 2:  # True if header pattern reappears consecutively
+                header_rows[len(header_rows)] = Header(row, pattern)
+
+        for i, row in header_rows.items():
+            prev = header_rows[i - 1] if i > 0 else rows[0]
+            
+            return row.cvt_header2tbl(prev, rows)
 
     ####  objects from pdf layer evaluated then stored on-demand/lazily  ####
         
@@ -54,7 +82,8 @@ class Page:
 
     @helper.lazy_property
     def lines(self):
-        self._lines = Edges(*self.objects.filter(cvttype='LTLine'), cast=True)
+        self._lines = Nest(*self.objects.filter(cvttype='LTLine'), cast=True)
+        self._lines.apply_nested(Nested.calc_orientation)
 
     @helper.lazy_property
     def chars(self):
@@ -68,58 +97,3 @@ class Page:
     def words(self):
         ws = Words(*[Word(*x._objs, cast=True) for x in self.text], cast=True)
         self._words = ws.filter(Word.has_txt)
-
-class PageGrid(Grid):
-
-    """
-    Uses edge/word-location info to split page into subgrids prior to table
-    extraction.
-    """
-
-    def __init__(self, page, user_settings):
-        """
-        Configure settings and extract info from page.
-        """
-        super().__init__(page)
-        
-        self.settings = self.Settings(user_settings)
-
-    def split(self):
-        """
-        Split grid into tables via chosen splitting method.
-        """
-        self.tbls = {}
-
-        if self.settings['header_pattern']:            
-            self.split_by_headers()
-    
-    def split_by_headers(self):
-        """
-        Use header info to isolate coordinates of tables in page.
-        """
-        self.rows = self.words.cluster(lambda x: x.y1)
-        pattern = self.settings['header_pattern']
-
-        header_rows = {}
-        for i, row in enumerate(self.rows):
-            score = row.score_incidence(pattern, True)
-
-            if score > 2:  # True if header pattern reappears consecutively
-                header_rows[len(header_rows)] = Header(row, pattern)
-
-        for i, row in header_rows.items():
-            prev = header_rows[i - 1] if i > 0 else self.rows[0]
-            
-            self.tbls[i] = Table(*row.cvt_header2tbl(prev, self.page))
-
-    def fill(self):
-        """
-        Fill out the tables in the pagegrid from word/edge patterns.
-        """
-        for tbl in self.tbls.values():
-            tbl.words.apply_nested(lambda x: x.rm_wspace())
-
-            tbl.find_lbls()
-            
-            tbl.find_v_spokes()  # Work down from headers for vertical spokes
-            tbl.find_h_spokes()  # Work across from labels for horiz spokes

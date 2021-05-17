@@ -43,22 +43,22 @@ class Header(Words):
         self.lbls.sort(key=lambda x:x.x0)
         self.lbls.reset_idx()
 
-    def cvt_header2tbl(self, prev_header, page):
+    def cvt_header2tbl(self, prev_header, rows):
         """
         Complete info from surroundings and return table.
         """
-        for lo in page.grid.rows[prev_header.i:self.i]:
+        for lo in rows[prev_header.i:self.i]:
             if lo.shares_header(self):
                 break  # Work way up from prev to find table end
 
-        for hi in page.grid.rows[self.i+1:]:
+        for hi in rows[self.i+1:]:
             if hi.agg('x0', 'min') <= self.agg('x0', 'min'):
                 title = hi.text
                 break
-            elif hi.i == len(page.grid.rows) - 1:
+            elif hi.i == len(rows) - 1:
                 title = 'n/a'
 
-        return page, self, lo, title
+        return self, lo, title
 
     @helper.lazy_property
     def period(self):

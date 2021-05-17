@@ -17,6 +17,13 @@ class BasePDF:
     def w(self):  # Width from furthermost left --> right points
         return self.x1 - self.x0
 
+    def calc_orientation(self):
+        """
+        Work out whether horizontal or vertical orientation.
+        """
+        self.v = self.y1 - self.y0 > self.x1 - self.x0
+        self.h = not self.h
+
 class Nest(MutableSequence, BasePDF):
 
     """
@@ -181,6 +188,21 @@ class Nest(MutableSequence, BasePDF):
                 continue
         
             yield elem
+
+    def slice(self, x0=None, x1=None, y0=None, y1=None):
+        """
+        Take a positional slice of elements from the cluster.
+        """
+        x0 = x0 if x0 else self.x0
+        x1 = x1 if x1 else self.x1
+
+        y0 = y0 if y0 else self.y0
+        y1 = y1 if y1 else self.y1
+        
+        chkHoriz = lambda x: x.x0 > x0 and x.x1 < x1
+        chkVert = lambda x: x.y0 > y0 and x.y1 < y1
+
+        return self.filter(lambda x: chkHoriz(x) and chkVert(x))
 
     def split(self, fn=None, *args, **filters):
         """

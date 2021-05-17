@@ -17,7 +17,7 @@ class Msft1Table(BaseTableTest):
         
         'v_spokes': ('FY19\n', '1.0\n 27.9\n 1.4\n 3.5\n'),
 
-        'h_spokes': ('Scope 3 - Business Travel \n', '26.7\n', 798.3373599999999),
+        'h_spokes': ('Scope 3 - Business Travel \n', '26.7\n'),
 
         'lbls': 1
     }
@@ -38,7 +38,7 @@ class Apple65Table(BaseTableTest):
         
         'v_spokes': ('2017\n', '996\n 831\n 166\n  105,940 \n  143,660 \n  70 \n  37,875,000 \n  167,670 \n  38,815,530 \n  - \n 336,000\n  - \n  - \n  - \n 920\n 93%\n  - \n  - \n  - \n'),
 
-        'h_spokes': ('MWh\n', '351\n', 1897.0295),
+        'h_spokes': ('percent\n', '1.9\n'),
 
         'lbls': 1
     }

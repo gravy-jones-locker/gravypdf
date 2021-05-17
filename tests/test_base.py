@@ -18,7 +18,7 @@ class BaseTest(ConstructorClass, unittest.TestCase):
         words = self.page.words
         assert len(words) == self.results['word_extraction']
 
-class BaseTableTest(ConstructorClass, unittest.TestCase, ):
+class BaseTableTest(ConstructorClass, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -44,9 +44,6 @@ class BaseTableTest(ConstructorClass, unittest.TestCase, ):
 
         assert spokes[3].lbl.text == self.results['h_spokes'][0]
         assert spokes[1][2].text == self.results['h_spokes'][1]
-
-        bbox = sum([getattr(spokes[2], x) for x in ['x0', 'x1', 'y0', 'y1']])
-        assert bbox == self.results['h_spokes'][2]
 
     def test_lbls(self):
         self.page.grid.tbls[0].find_lbls()

@@ -10,26 +10,24 @@ class Grid:
     Parent class for conceptualisation of page area as matrix of edges/cells.
     """
 
-    def __init__(self, page, x0=None, x1=None, y0=None, y1=None):
+    def __init__(self, page, settings, x0=None, x1=None, y0=None, y1=None):
         """
         Store position and cut relevant features from page.
         """
-        self.page = page
+        self.y1 = y1 if y1 else page.h
+        self.y0 = y0 if y0 else 0
 
-        self.store_pos(x0, x1, y0, y1)
+        self.x1 = x1 if x1 else page.w
+        self.x0 = x0 if x0 else 0
 
         self.words = self.get_fitted(page.words)
         self.lines = self.get_fitted(page.lines)
 
-    def store_pos(self, x0=None, x1=None, y0=None, y1=None):
-        """
-        Stores the coordinates of the grid in the page.
-        """
-        self.y1 = y1 if y1 else self.page.h
-        self.y0 = y0 if y0 else 0
-
-        self.x1 = x1 if x1 else self.page.w
-        self.x0 = x0 if x0 else 0
+        if self.words:
+            self.find_cols(settings['word_tolerance_vertical'])
+            self.find_rows(settings['word_tolerance_horizontal'])
+        else:
+            self.cols, self.rows = Words(), Words()
 
     def get_fitted(self, nest):
         """
@@ -37,11 +35,10 @@ class Grid:
         """
         return nest.filter(Nested.chk_intersection, self)
 
-    def get_w_cols(self, w_tol):
+    def find_cols(self, w_tol):
         """
         Use multiple clustering and subsequent separation to find cols of words.
         """
-        if (not self.words): return Nest()
         # Cluster words by multiple x pts (l/r/mid) --> [cluster, cluster..]
         h_clusters, align = self.words.mega_cluster('horizontal', w_tol, True)
 
@@ -51,56 +48,48 @@ class Grid:
         col_tol = stats.median([x.w for x in h_clusters]) / 2
 
         fn = lambda x: x.agg(align, 'median')
-        w_cols = h_clusters.cluster(fn, col_tol)
+        self.cols = h_clusters.cluster(fn, col_tol)
 
         # Then take the largest of each to get one cluster for each column
-        w_cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
+        self.cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
 
-        return w_cols
-
-    def get_w_rows(self, word_tol):
+    def find_rows(self, word_tol):
         """
-        As above (get_w_cols) but slimmed and applied vertically for rows.
+        As above (get_cols) but slimmed and applied vertically for rows.
         """
-        if (not self.words): return Nest()
-
-        w_rows, align = self.words.mega_cluster('vertical', word_tol)
-        w_rows = w_rows.get_sorted(len, 0, inv=True)
-
-        return w_rows
-
-    def get_h_lbls(self):
-        """
-        Using available line/word data snap data into labels.
-        """
-        tol = (self.w_rows.y1 - self.w_rows.y0) / len(self.w_rows) / 2
-        rows = self.w_rows.cluster(lambda x: x.midy, tol)
-
-        ln_mids = self.lines_h.get_delta(lambda x, y: abs(x.midy + y.midy) / 2)
-        matches = []
-        for y in ln_mids:
-            if not any([x.midy - 5 <= y <= x.midy + 5 for x in rows]):
-                continue
-            matches.append(y)
-
-        lbls = Nest()
-        if len(matches) / (len(rows) - 2) > 0.8:
-            for i, ln in enumerate(self.lines_h[:-1]):
-                y1 = ln.y1
-                y0 = self.lines_h[i+1].y0
-
-                lbl = self.words.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
-                if len(lbl) > 0:
-                    lbls.append(lbl)
+        rows, _ = self.words.mega_cluster('vertical', word_tol)
         
-        for r in rows:
-            if any([r.chk_intersection(x) for x in lbls]):
+        # Take the largest cluster of rows
+        self.rows = rows.get_sorted(len, 0, inv=True)
+
+    def segment_col(self, col):
+        """
+        Segment a column by the horizontal position of words and lines within -
+        ***which column-by-column can be assumed to take only one place*** 
+        """
+        out = Nest()
+
+        # Cluster words into rows with tolerance of roughly half normal spacing
+        rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)
+        
+        lns = self.lines_h.slice(x0=col.x0, x1=col.x1)
+        words = self.words.slice(x0=col.x0, x1=col.x1)
+        
+        for i, ln in enumerate(lns[:-1]):
+            y1 = ln.y1
+            y0 = self.lines_h[i+1].y0
+
+            # Compile a value from all the words inside a pair of lines
+            val = words.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
+            if len(val) > 0:
+                out.append(val)
+        
+        for r in rows:  # Iterate over rows and insert any not yet covered
+            if any([r.chk_intersection(x) for x in out]):
                 continue
-            lbls.append(r)
+            out.append(r)
 
-        lbls.set_coords()
-
-        return lbls
+        return out
 
     @helper.lazy_property
     def lines_h(self):
