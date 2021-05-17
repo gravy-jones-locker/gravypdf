@@ -2,7 +2,6 @@ from pdfgravy.settings import Settings
 from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.converter import PDFPageAggregator
 from .nest import Nest, Nested
-from .edges import Edges
 from .table import Table
 from .words import Word, Words, Header
 from . import helper
@@ -34,7 +33,7 @@ class Page:
         settings = Table.Settings(user_settings)
         
         if settings['header_pattern']:            
-            self.split_by_headers()
+            self.split_by_headers(settings['header_pattern'])
         if settings['remove_whitespace']:
             self.words.apply_nested(lambda x: x.rm_wspace())
 
@@ -43,12 +42,11 @@ class Page:
 
         return self.tbls
 
-    def split_by_headers(self):
+    def split_by_headers(self, pattern):
         """
         Use header info to isolate coordinates of tables in page.
         """
         rows = self.words.cluster(lambda x: x.y1)
-        pattern = self.settings['header_pattern']
 
         header_rows = {}
         for i, row in enumerate(rows):
@@ -60,7 +58,7 @@ class Page:
         for i, row in header_rows.items():
             prev = header_rows[i - 1] if i > 0 else rows[0]
             
-            return row.cvt_header2tbl(prev, rows)
+            self.tbls[i] = row.cvt_header2tbl(prev, rows)
 
     ####  objects from pdf layer evaluated then stored on-demand/lazily  ####
         

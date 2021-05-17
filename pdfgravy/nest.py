@@ -22,7 +22,9 @@ class BasePDF:
         Work out whether horizontal or vertical orientation.
         """
         self.v = self.y1 - self.y0 > self.x1 - self.x0
-        self.h = not self.h
+        self.h = not self.v
+
+        return self
 
 class Nest(MutableSequence, BasePDF):
 
@@ -145,6 +147,8 @@ class Nest(MutableSequence, BasePDF):
 
         self.y0 = self.agg('y0', 'min')
         self.y1 = self.agg('y1', 'max')
+
+        return self
 
     @Decorators.rehome
     def cluster(self, fn, tol=5, inv=False, store_parent=True):
@@ -283,15 +287,17 @@ class Nested(BasePDF):
 
         return abs(val - ref_val) <= tol
 
-    def chk_intersection(self, ref):
+    def chk_intersection(self, ref, x_only=False, y_only=False):
         """
         Return True if the element is inside the coordinates passed.
         """
-        if ref.x0 and self.x1 <= ref.x0 or ref.x1 and self.x0 >= ref.x1:
-            return False
+        if not y_only:
+            if ref.x0 and self.x1 <= ref.x0 or ref.x1 and self.x0 >= ref.x1:
+                return False
         
-        if ref.y0 and self.y1 <= ref.y0 or ref.y1 and self.y0 >= ref.y1:
-            return False
+        if not x_only:
+            if ref.y0 and self.y1 <= ref.y0 or ref.y1 and self.y0 >= ref.y1:
+                return False
 
         return True
 

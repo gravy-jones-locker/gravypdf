@@ -6,40 +6,43 @@ class Spoke(Nest):
         """
         Store constitutive spoke and label data. 
         """
-        self.lbls  = lbls
-        self.title = ', '.join(lbls)
-        
+        self.lbls  = Nest(*sorted(lbls, key=lambda x: x.x0))
+        self.title = ', '.join([x.text.strip('\n ') for x in self.lbls])
+
         super().__init__(*clusters)
 
         self.calc_orientation()
 
     def __repr__(self):
-        return f'{self.title}: {self.midx if self.v else self.midy}'
+        return f'{self.title}: {self.midx if self.v else self.midy}'        
 
-    @Nest.Decorators.rehome
     def split_v(self):
         """
         Split one vertical spoke into multiple subsidiaries.
         """
         if len(self) < 2:
-            yield self  # True if obviously no subheaders
+            self._ls = self[0]
+            return Nest(self)  # True if obviously no subheaders
 
         out = Nest()
         for sub_spoke in self:
             sub_hd = sub_spoke.get_sorted(lambda x: x.y1, inv=True)
-            
             vals = sub_spoke.slice(y1=sub_hd.y0)
 
-            yield Spoke(sub_hd + self.lbls, *vals)
+            out.append(Spoke(*[*sub_hd, *self.lbls], *vals))
+        
+        return out
 
-    @Nest.Decorators.rehome
-    def consolidate_h(self, lbls):
+    def consolidate_h(self, flat_lbls):
         """
         Consolidate horizontal spokes into proper aggregates.
         """
-        if len(self) > 1:
-            yield from (Spoke(lbls, x).consolidate_h(lbls) for x in self)
+        out = Nest()
 
-        self.lbls += lbls.filter(Nested.chk_intersection, self)
-        
-        yield self
+        ad_lbls = flat_lbls.filter(Nested.chk_intersection, self, False, True)
+        self.lbls._ls += [x for x in ad_lbls if x not in self.lbls]
+
+        for sub_spoke in self:
+            out.append(Spoke(self.lbls, *sub_spoke))
+
+        return out

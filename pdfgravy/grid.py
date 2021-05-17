@@ -10,7 +10,7 @@ class Grid:
     Parent class for conceptualisation of page area as matrix of edges/cells.
     """
 
-    def __init__(self, page, settings, x0=None, x1=None, y0=None, y1=None):
+    def __init__(self, page, x0=None, x1=None, y0=None, y1=None):
         """
         Store position and cut relevant features from page.
         """
@@ -24,8 +24,8 @@ class Grid:
         self.lines = self.get_fitted(page.lines)
 
         if self.words:
-            self.find_cols(settings['word_tolerance_vertical'])
-            self.find_rows(settings['word_tolerance_horizontal'])
+            self.find_cols(5)
+            self.find_rows(5)
         else:
             self.cols, self.rows = Words(), Words()
 
@@ -53,11 +53,11 @@ class Grid:
         # Then take the largest of each to get one cluster for each column
         self.cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
 
-    def find_rows(self, word_tol):
+    def find_rows(self, w_tol):
         """
         As above (get_cols) but slimmed and applied vertically for rows.
         """
-        rows, _ = self.words.mega_cluster('vertical', word_tol)
+        rows, _ = self.words.mega_cluster('vertical', w_tol)
         
         # Take the largest cluster of rows
         self.rows = rows.get_sorted(len, 0, inv=True)
@@ -72,16 +72,19 @@ class Grid:
         # Cluster words into rows with tolerance of roughly half normal spacing
         rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)
         
-        lns = self.lines_h.slice(x0=col.x0, x1=col.x1)
-        words = self.words.slice(x0=col.x0, x1=col.x1)
+        lns = self.lines_h.filter(Nested.chk_intersection, col)
+        lns = sorted(lns, key=lambda x: x.y0)
         
         for i, ln in enumerate(lns[:-1]):
-            y1 = ln.y1
-            y0 = self.lines_h[i+1].y0
+            y0 = ln.y0
+            y1 = lns[i+1].y1
 
             # Compile a value from all the words inside a pair of lines
-            val = words.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
+            val = rows.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
             if len(val) > 0:
+                val.y0 = y0
+                val.y1 = y1
+
                 out.append(val)
         
         for r in rows:  # Iterate over rows and insert any not yet covered
@@ -98,26 +101,3 @@ class Grid:
     @helper.lazy_property
     def lines_v(self):
         self._lines_v = self.lines.filter(v=True)
-
-    class Settings(Settings):
-
-        defaults = {
-            "explicit_vertical_lines": [],
-            "explicit_horizontal_lines": [],
-            "snap_tolerance": 3,
-            "join_tolerance": 3,
-            "edge_min_length": 3,
-            "min_words_vertical": 3,
-            'min_words_vertical_ratio': 0.5,
-            "min_words_horizontal": 1,
-            "intersection_tolerance": 3,
-            "intersection_x_tolerance": None,
-            "intersection_y_tolerance": None,
-            "find_headers": True,
-            "header_pattern": [r'(?:20|FY|fy)(\d\d)']
-        }
-
-        fallbacks = {
-            "intersection_x_tolerance": "intersection_tolerance",
-            "intersection_y_tolerance": "intersection_tolerance"
-        }
