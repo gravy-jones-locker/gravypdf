@@ -14,17 +14,19 @@ class BasePDF:
         return (self.y1 + self.y0) / 2
 
     @property
-    def w(self):  # Width from furthermost left --> right points
+    def w(self):
         return self.x1 - self.x0
 
-    def calc_orientation(self):
-        """
-        Work out whether horizontal or vertical orientation.
-        """
-        self.v = self.y1 - self.y0 > self.x1 - self.x0
-        self.h = not self.v
+    @property
+    def h(self):
+        return self.y1 - self.y0
 
-        return self
+    @property
+    def orientation(self):
+        if self.y1 - self.y0 > self.x1 - self.x0:
+            return 'v'
+        else:
+            return 'h'
 
 class Nest(MutableSequence, BasePDF):
 
@@ -36,13 +38,13 @@ class Nest(MutableSequence, BasePDF):
     class Decorators:
 
         @classmethod
-        def set_coords(decs, func):
+        def set_bbox(decs, func):
             """
             Resets coordinates of nest based on (new) elements.
             """
             def inner(cls, *args, **kwargs):
                 cls = func(cls, *args, **kwargs)
-                cls.set_coords()
+                cls.set_bbox()
                 return cls            
             return inner
 
@@ -51,12 +53,10 @@ class Nest(MutableSequence, BasePDF):
             """
             Simplifies functions which synthesise new nests from existing items.
             """
-            @decs.set_coords
+            @decs.set_bbox
             def inner(cls, *args, **kwargs):
                 out = type(cls)()
-                for i, elem in enumerate(func(cls, *args, **kwargs)):
-                    if kwargs.get('store_parent'):
-                        elem.parent = out
+                for elem in func(cls, *args, **kwargs):
                     out.addtwigs(elem)
                 return out
             return inner
@@ -76,7 +76,7 @@ class Nest(MutableSequence, BasePDF):
 
             self.addtwigs(elem)
         
-        self.set_coords()
+        self.set_bbox()
 
     ####  apply builtins to inner (_ls) list of nested items  ####
 
@@ -138,20 +138,22 @@ class Nest(MutableSequence, BasePDF):
             return None        
         return eval(f'np.{qnt}')(ref_ls)
 
-    def set_coords(self):
+    def set_bbox(self, x_only=False, y_only=False):
         """
-        Aggregate object coordinates to get new outmost points.
+        Aggregate object coordinates to get new bounding box.
         """
-        self.x0 = self.agg('x0', 'min')
-        self.x1 = self.agg('x1', 'max')
+        if not y_only:
+            self.x0 = self.agg('x0', 'min')
+            self.x1 = self.agg('x1', 'max')
 
-        self.y0 = self.agg('y0', 'min')
-        self.y1 = self.agg('y1', 'max')
+        if not x_only:
+            self.y0 = self.agg('y0', 'min')
+            self.y1 = self.agg('y1', 'max')
 
         return self
 
     @Decorators.rehome
-    def cluster(self, fn, tol=5, inv=False, store_parent=True):
+    def cluster(self, fn, tol=5, inv=False):
         """
         Group nested elements by the attribute and function specified.
         """
@@ -181,23 +183,32 @@ class Nest(MutableSequence, BasePDF):
                 yield elem
 
     @Decorators.rehome
-    def filter(self, fn=None, *args, **filters):
+    def filter(self, fn=None, *args, **kwargs):
         """
         Return a filtered nest according to the keys/values in the mapping.
         """
         for elem in self:
-            if not all([getattr(elem, k, '') == v for k, v in filters.items()]):
-                continue
-            if fn and not fn(elem, *args):
+            if fn and not fn(elem, *args, **kwargs):
                 continue
         
+            yield elem
+
+    @Decorators.rehome
+    def filter_attrs(self, **filters):
+        """
+        Specify key/value pairs by which to filter the nest and pass to filter.
+        """
+        for elem in self:
+            if not all([getattr(elem, k, '') == v for k, v in filters.items()]):
+                continue
+
             yield elem
 
     def slice(self, x0=None, x1=None, y0=None, y1=None):
         """
         Take a positional slice of elements from the cluster.
         """
-        x0 = x0 if x0 else self.x0 - 1
+        x0 = x0 if x0 else self.x0 - 1  # Offset includes self if not specified
         x1 = x1 if x1 else self.x1 + 1
 
         y0 = y0 if y0 else self.y0 - 1
@@ -230,7 +241,7 @@ class Nest(MutableSequence, BasePDF):
             out.append(fn(elem, self[i_ref]))
         return out
 
-    def mega_cluster(self, orientation, tol, flatten=False):
+    def mega_cluster(self, orientation, tol):
         """
         Apply multiple clustering strategies to accommodate alignments.
         """
@@ -241,16 +252,17 @@ class Nest(MutableSequence, BasePDF):
 
         out = type(self)()
         max_len = 0
-        align = vars[2]
         for var in vars:
             clusters = self.cluster(lambda x: eval(var), tol)
-            if clusters and max([len(x) for x in clusters]) > max_len:
-                max_len = max([len(x) for x in clusters])
+            
+            # Check to see if any match the highest count
+            for cluster in clusters:
+                if len(cluster) <= max_len:
+                    continue
+                max_len = len(cluster)
                 align = var[2:]
-            if flatten:         
-                out.addtwigs(*clusters)
-            else:
-                out.addtwigs(clusters)
+
+            out.addtwigs(clusters)
 
         return out, align
 
@@ -301,14 +313,25 @@ class Nested(BasePDF):
 
         return True
 
-    @helper.lazy_property
+    def squash(self, axis):
+        """
+        Squash the coordinates along the axis specified to be equivalent.
+        """
+        if axis == 'x':
+            self.x0, self.x1 = self.midx, self.midx
+        if axis == 'y':
+            self.y0, self.y1 = self.midy, self.midy
+
+    @property
     def text(self):
         """
         Extract and label text where available.
         """
-        if not hasattr(self, 'get_text'):
-            self._text = None
+        if hasattr(self, '_text'):
+            return self._text
+        elif hasattr(self, 'get_text'):
+            return self.get_text()
         else:
-            self._text = self.get_text()
+            return None
 
 Nest.nested = Nested  # Forward declaration workaround

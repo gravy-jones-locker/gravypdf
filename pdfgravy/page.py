@@ -80,26 +80,24 @@ class Page:
 
     @helper.lazy_property
     def lines(self):
-        self._lines = Nest(*self.objects.filter(cvttype='LTLine'), cast=True)
-        rects = Nest(*self.objects.filter(cvttype='LTRect'), cast=True)
-        for rect in rects:
-            if abs(rect.x0 - rect.x1) < 3:
-                rect.x0 = rect.midx
-                rect.x1 = rect.midx
-                self._lines.append(rect)
-            elif abs(rect.y0 - rect.y1) < 3:
-                rect.y0 = rect.midy
-                rect.y1 = rect.midy
-                self._lines.append(rect)
-        self._lines.apply_nested(Nested.calc_orientation)
+        lines = self.objects.filter_attrs(cvttype='LTLine')
+        rects = self.objects.filter_attrs(cvttype='LTRect')
+        
+        rects_v = rects.filter(lambda x: x.x1 - x.x0 < 3)
+        rects_h = rects.filter(lambda x: x.y1 - x.y0 < 3)
+
+        rects_v.apply_nested(Nested.squash, 'x')
+        rects_h.apply_nested(Nested.squash, 'y')
+        
+        self._lines = Nest(*lines, *rects_v, *rects_h)
 
     @helper.lazy_property
     def chars(self):
-        self._chars = self.objects.filter(cvttype='LTChar')
+        self._chars = self.objects.filter_attrs(cvttype='LTChar')
 
     @helper.lazy_property
     def text(self):
-        self._text = self.objects.filter(cvttype='LTTextLineHorizontal')
+        self._text = self.objects.filter_attrs(cvttype='LTTextLineHorizontal')
 
     @helper.lazy_property
     def words(self):

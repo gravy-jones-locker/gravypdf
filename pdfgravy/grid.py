@@ -40,11 +40,12 @@ class Grid:
         """
         Use multiple clustering and subsequent separation to find cols of words.
         """
-        # Cluster words by multiple x pts (l/r/mid) --> [cluster, cluster..]
-        h_clusters, align = self.words.mega_cluster('horizontal', w_tol, True)
+        # Cluster words by multiple x pts (l/r/mid)
+        h_clusters, align = self.words.mega_cluster('horizontal', w_tol)
+        h_clusters = Nest(*[x for y in h_clusters for x in y])
 
-        # Then cluster each of those by their midpoint w/ large tolerance -->
-        # [[cluster, cluster..], [cluster, cluster..]..]
+        # Then flatten and cluster the clusters with a wide tolerance to sort
+        # by column.
 
         col_tol = stats.median([x.w for x in h_clusters]) / 2
 
@@ -73,7 +74,7 @@ class Grid:
         # Cluster words into rows with tolerance of roughly half normal spacing
         rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)
         
-        lns = self.lines_h.filter(Nested.chk_intersection, col, True)
+        lns = self.lines_h.filter(Nested.chk_intersection, col, x_only=True)
         lns = sorted(lns, key=lambda x: x.y0)
         
         for i, ln in enumerate(lns[:-1]):
@@ -82,7 +83,7 @@ class Grid:
 
             # Compile a value from all the words inside a pair of lines
             val = rows.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
-            val.set_coords()
+            val.set_bbox()
             
             val.y0 = y0
             val.y1 = y1
@@ -92,14 +93,14 @@ class Grid:
         for r in rows:  # Iterate over rows and insert any not yet covered
             if any([r.chk_intersection(x) for x in out]):
                 continue
-            r.set_coords()
+            r.set_bbox()
             out.append(r)
 
         return out
 
     @helper.lazy_property
     def lines_h(self):
-        self._lines_h = self.lines.filter(h=True)
+        self._lines_h = self.lines.filter_attrs(orientation='h')
         if not self._lines_h:
             return
         hi, lo = copy(self._lines_h[0]), copy(self._lines_h[0])
@@ -109,4 +110,4 @@ class Grid:
     
     @helper.lazy_property
     def lines_v(self):
-        self._lines_v = self.lines.filter(v=True)
+        self._lines_v = self.lines.filter_attrs(orientation='v')

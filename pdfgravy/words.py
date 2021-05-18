@@ -83,7 +83,7 @@ class Word(Nest, Nested):
         """
         return not all([x.is_wspace() for x in self])
 
-    @Nest.Decorators.set_coords
+    @Nest.Decorators.set_bbox
     def rm_wspace(self):
         """
         Remove any surrounding whitespace.
