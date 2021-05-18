@@ -25,6 +25,7 @@ class Table:
         self.find_v_spokes()  # Work down from headers for v spokes
         self.find_h_spokes()  # Work across from labels for h spokes
 
+        self.spokes = self.spokes.filter(lambda x: x.title)
         pass
 
     def __repr__(self):
@@ -41,26 +42,28 @@ class Table:
 
             # Find any columns to the right of the current label
             xr = lbl.midx + off_r
-            cols_r = Grid(self.page, lbl.midx, xr, self.y0, self.y1).cols
+            cols_r = Grid(self.page, lbl.midx + 10, xr, self.y0, lbl.y0).cols
 
             if cols_r:  # Calculate the offset to the data from the expected pt
                 rmost = cols_r[-1]
                 off_r = rmost.agg('midx', 'median') - lbl.midx
+            else:
+                off_r = 0
 
             # Do the same to the left, applying the offset found
             xl = lbl.midx - off_r
 
-            if cols_r and xl < rmost.x0:
-                cols_l = Grid(self.page, xl, rmost.x0, self.y0, self.y1).cols
-            elif not cols_r:
-                cols_l = Grid(self.page, xl, lbl.midx, self.y0, self.y1).cols
+            if cols_r and xl < rmost.x0 and rmost.x0 < lbl.midx:
+                cols_l = Grid(self.page, xl, rmost.x0, self.y0, lbl.y0).cols
+            elif not cols_r or rmost.x0 > lbl.midx:
+                cols_l = Grid(self.page, xl, lbl.midx, self.y0, lbl.y0).cols
             else:
                 cols_l = Nest()
                 
             # Initialise top-level spoke from all columns found under the header
             # and split by sub-headers, if found.
-
-            spokes = Spoke([lbl], *cols_l, *cols_r).split_v()
+            
+            spokes = Spoke([lbl], *cols_l, *cols_r).split_v(self.page.words)
 
             self.spokes.addtwigs(*spokes)
 
@@ -68,26 +71,25 @@ class Table:
         """
         Find and label the horizontal spokes from the position of the values.
         """
-        lbls = Nest()
+        lbls_by_col = Nest()
 
         # From the non-data area of the grid get the label of each row  
-        lbl_cut = self.header.lbls[0].midx - self.header.period
+        lbl_cut = self.spokes.get_sorted(lambda x: x.x0).x0
         lbl_grid = Grid(self.page, None, lbl_cut, self.y0, self.y1)
 
         for col in sorted(lbl_grid.cols, key=lambda x: x.x0):
             col_lbls = lbl_grid.segment_col(col)  # Split each col into rows
             
-            lbls.append(col_lbls)
-        
-        lbls.apply_nested(Nest.set_coords)
-        flat_lbls = Nest(*[x for y in lbls for x in y])
+            lbls_by_col.append(col_lbls)
 
         # Once found derive horizontal spokes from row labels + their position
-        for lbl in lbls[-1]:
+        for lbl in lbls_by_col[-1]:
+            if not lbl:
+                continue
             rows = Grid(self.page, lbl.x1, None, lbl.y0, lbl.y1).rows 
             
             # Consolidate the data found according to aggregate labels etc. 
-            spokes = Spoke([lbl], *rows).consolidate_h(flat_lbls)
+            spokes = Spoke([lbl], *rows).consolidate_h(lbls_by_col)
             
             self.spokes.addtwigs(*spokes)
 

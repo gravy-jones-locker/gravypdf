@@ -81,6 +81,16 @@ class Page:
     @helper.lazy_property
     def lines(self):
         self._lines = Nest(*self.objects.filter(cvttype='LTLine'), cast=True)
+        rects = Nest(*self.objects.filter(cvttype='LTRect'), cast=True)
+        for rect in rects:
+            if abs(rect.x0 - rect.x1) < 3:
+                rect.x0 = rect.midx
+                rect.x1 = rect.midx
+                self._lines.append(rect)
+            elif abs(rect.y0 - rect.y1) < 3:
+                rect.y0 = rect.midy
+                rect.y1 = rect.midy
+                self._lines.append(rect)
         self._lines.apply_nested(Nested.calc_orientation)
 
     @helper.lazy_property

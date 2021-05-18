@@ -3,6 +3,7 @@ from .nest import Nested, Nest
 from . import helper
 import statistics as stats
 from .words import Words
+from copy import copy
 
 class Grid:
 
@@ -72,7 +73,7 @@ class Grid:
         # Cluster words into rows with tolerance of roughly half normal spacing
         rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)
         
-        lns = self.lines_h.filter(Nested.chk_intersection, col)
+        lns = self.lines_h.filter(Nested.chk_intersection, col, True)
         lns = sorted(lns, key=lambda x: x.y0)
         
         for i, ln in enumerate(lns[:-1]):
@@ -81,15 +82,17 @@ class Grid:
 
             # Compile a value from all the words inside a pair of lines
             val = rows.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
-            if len(val) > 0:
-                val.y0 = y0
-                val.y1 = y1
+            val.set_coords()
+            
+            val.y0 = y0
+            val.y1 = y1
 
-                out.append(val)
+            out.append(val)
         
         for r in rows:  # Iterate over rows and insert any not yet covered
             if any([r.chk_intersection(x) for x in out]):
                 continue
+            r.set_coords()
             out.append(r)
 
         return out
@@ -97,6 +100,12 @@ class Grid:
     @helper.lazy_property
     def lines_h(self):
         self._lines_h = self.lines.filter(h=True)
+        if not self._lines_h:
+            return
+        hi, lo = copy(self._lines_h[0]), copy(self._lines_h[0])
+        hi.x0, hi.x1, hi.y0, hi.y1 = self.x0, self.x1, self.y1, self.y1
+        lo.x0, lo.x1, lo.y0, lo.y1 = self.x0, self.x1, self.y0, self.y0
+        self._lines_h.extend([hi, lo])
     
     @helper.lazy_property
     def lines_v(self):

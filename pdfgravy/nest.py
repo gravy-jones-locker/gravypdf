@@ -197,11 +197,11 @@ class Nest(MutableSequence, BasePDF):
         """
         Take a positional slice of elements from the cluster.
         """
-        x0 = x0 if x0 else self.x0
-        x1 = x1 if x1 else self.x1
+        x0 = x0 if x0 else self.x0 - 1
+        x1 = x1 if x1 else self.x1 + 1
 
-        y0 = y0 if y0 else self.y0
-        y1 = y1 if y1 else self.y1
+        y0 = y0 if y0 else self.y0 - 1
+        y1 = y1 if y1 else self.y1 + 1
         
         chkHoriz = lambda x: x.x0 > x0 and x.x1 < x1
         chkVert = lambda x: x.y0 > y0 and x.y1 < y1

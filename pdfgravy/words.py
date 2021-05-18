@@ -47,7 +47,7 @@ class Header(Words):
         """
         Complete info from surroundings and return table.
         """
-        for lo in rows[prev_header.i:self.i]:
+        for lo in rows[prev_header.i+1:self.i]:
             if lo.shares_header(self):
                 break  # Work way up from prev to find table end
 
