@@ -321,6 +321,8 @@ class Nested(BasePDF):
             self.x0, self.x1 = self.midx, self.midx
         if axis == 'y':
             self.y0, self.y1 = self.midy, self.midy
+        
+        return self
 
     @property
     def text(self):

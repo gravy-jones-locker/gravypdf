@@ -21,7 +21,6 @@ class Table:
 
         # Work down from headers then across from labels for spokes
         self.find_spokes()
-        pass
 
     def __repr__(self):
         return f'{self.title}, {self.y1}, {self.y0}'
@@ -42,7 +41,7 @@ class Table:
             self.spokes.add_vertical(v_lbl, v_data, self.page.words)
 
         # Use split from vertical data to find horizontal labels
-        self.find_h_lbls(v_data.x0)
+        self.find_h_lbls(self.spokes.agg('x0', 'min'))
 
         for h_lbl in self.h_lbls[-1]:  # Iterate from hi to lo over inmost
             h_data = Grid(self.page, h_lbl.x1, None, h_lbl.y0, h_lbl.y1).rows

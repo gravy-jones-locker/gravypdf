@@ -52,13 +52,19 @@ class Spoke:
         self.val = val
 
         if orientation == 'h':
-            self.lbls = sorted(lbls, key=lambda x: x.x0)
+            self.lbls = Nest(*sorted(lbls, key=lambda x: x.x0))
         else:
-            self.lbls = sorted(lbls, key=lambda x: x.y0, reverse=True)
+            self.lbls = Nest(*sorted(lbls, key=lambda x: x.y0, reverse=True))
 
         self.title = ', '.join([x.text.strip('\n ') for x in self.lbls])
         
         self.debug = data
+
+        self.x0 = min([data.agg('x0', 'min'), self.lbls.agg('x0', 'min')])
+        self.x1 = max([data.agg('x1', 'max'), self.lbls.agg('x1', 'max')])
+
+        self.y0 = min([data.agg('y0', 'min'), self.lbls.agg('y0', 'min')])
+        self.y1 = max([data.agg('y1', 'max'), self.lbls.agg('y1', 'max')])
 
     def __repr__(self):
         return f'{self.title}: {self.val} ({self.orientation})'
