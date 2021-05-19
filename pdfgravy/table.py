@@ -41,12 +41,15 @@ class Table:
             self.spokes.add_vertical(v_lbl, v_data, self.page.words)
 
         # Use split from vertical data to find horizontal labels
-        self.find_h_lbls(self.spokes.agg('x0', 'min'))
+        self.find_h_lbls(self.spokes.agg('x0', 'min'), v_lbl.y0)
 
-        for h_lbl in self.h_lbls[-1]:  # Iterate from hi to lo over inmost
+        for h_lbl in self.h_lbls.get_sorted(len, inv=True):
             h_data = Grid(self.page, h_lbl.x1, None, h_lbl.y0, h_lbl.y1).rows
 
-            self.spokes.add_horizontal(h_lbl, h_data, self.h_lbls)
+            try:  # TODO solve errors here
+                self.spokes.add_horizontal(h_lbl, h_data, self.h_lbls)
+            except:
+                pass
 
     def get_v_spoke_data(self, hd, off_r):
         """
@@ -72,13 +75,13 @@ class Table:
 
         return Nest(*cols_r, *cols_l), off_r
 
-    def find_h_lbls(self, lbl_cut):
+    def find_h_lbls(self, lbl_cutx, lbl_cuty):
         """
         Given an x cut between labels/data find row labels.
         """
         self.h_lbls = Nest()
 
-        lbl_grid = Grid(self.page, None, lbl_cut, self.y0, self.y1)
+        lbl_grid = Grid(self.page, None, lbl_cutx, self.y0, lbl_cuty)
 
         for col in sorted(lbl_grid.cols, key=lambda x: x.x0):
             col_lbls = lbl_grid.segment_col(col)  # Split each col into rows
@@ -86,8 +89,14 @@ class Table:
 
             self.h_lbls.append(col_lbls)
 
+        # Snap the label lines into place
+        template = self.h_lbls.get_sorted(len, inv=True)
+        for col_lbls in self.h_lbls:
+            if col_lbls == template:
+                continue
+            col_lbls.fill_y_gaps(template)
+
         self.h_lbls.set_bbox()
-        self.h_lbls.apply_nested(Nest.set_bbox, x_only=True)
 
     class Settings(Settings):
 

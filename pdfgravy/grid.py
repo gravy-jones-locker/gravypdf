@@ -54,7 +54,7 @@ class Grid:
 
         # Then take the largest of each to get one cluster for each column
         self.cols.apply_nested(Nest.get_sorted, len, 0, inv=True)
-
+        
     def find_rows(self, w_tol):
         """
         As above (get_cols) but slimmed and applied vertically for rows.
@@ -69,43 +69,31 @@ class Grid:
         Segment a column by the horizontal position of words and lines within -
         ***which column-by-column can be assumed to take only one place*** 
         """
-        out = Nest()
-
         # Cluster words into rows with tolerance of roughly half normal spacing
-        rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)
+        rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)  # TODO develop the negative cluster
         
         lns = self.lines_h.filter(Nested.chk_intersection, col, x_only=True)
-        lns = sorted(lns, key=lambda x: x.y0)
-        
-        for i, ln in enumerate(lns[:-1]):
-            y0 = ln.y0
-            y1 = lns[i+1].y1
+        lns = None #sorted(lns, key=lambda x: x.y0)
 
-            # Compile a value from all the words inside a pair of lines
-            val = rows.filter(lambda x: x.y0 >= y0 and x.y1 <= y1)
-            val.set_bbox()
-            
-            val.y0 = y0
-            val.y1 = y1
+        if lns:  # Slot rows between the available lines
+            slots = [(x.y0, lns[i+1].y1) for i, x in enumerate(lns[:-1])]
+            rows = rows.slot_y(slots, missed='include')
 
-            out.append(val)
-        
-        for r in rows:  # Iterate over rows and insert any not yet covered
-            if any([r.chk_intersection(x) for x in out]):
-                continue
-            r.set_bbox()
-            out.append(r)
-
-        return out
+        return rows
 
     @helper.lazy_property
     def lines_h(self):
         self._lines_h = self.lines.filter_attrs(orientation='h')
+        
         if not self._lines_h:
             return
+
+        # Add top/bottom bounding lines in case of absence
         hi, lo = copy(self._lines_h[0]), copy(self._lines_h[0])
+
         hi.x0, hi.x1, hi.y0, hi.y1 = self.x0, self.x1, self.y1, self.y1
         lo.x0, lo.x1, lo.y0, lo.y1 = self.x0, self.x1, self.y0, self.y0
+        
         self._lines_h.extend([hi, lo])
     
     @helper.lazy_property

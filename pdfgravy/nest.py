@@ -152,6 +152,14 @@ class Nest(MutableSequence, BasePDF):
 
         return self
 
+    def approximate(self, attr, v):
+        """
+        Return the element with the closest value.
+        """
+        min_dist = min([abs(v - getattr(x, attr, '')) for x in self])
+
+        return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
+
     @Decorators.rehome
     def cluster(self, fn, tol=5, inv=False):
         """
@@ -203,6 +211,53 @@ class Nest(MutableSequence, BasePDF):
                 continue
 
             yield elem
+
+    @Decorators.rehome
+    def slot_y(self, slots, missed):
+        """
+        Slot the members of the nest into the slots specified.
+        """
+        slots.sort(key=lambda x:x[0])
+
+        for i, (slot_y0, slot_y1) in enumerate(slots):
+            if missed == 'include':
+                y0 = slots[i-1][1] if i > 0 else self.y0  # Look below
+                yield from self.slice(y0=y0, y1=slot_y0)
+
+            filling = self.slice(y0=slot_y0, y1=slot_y1)
+            
+            if filling:  # Return anything that fell in the slot as one item
+                filling.y0, filling.y1 = slot_y0, slot_y1
+                yield filling
+
+            if missed == 'include' and i == len(slots) - 1:  
+                yield from self.slice(y0=slot_y1, y1=self.y1)  # Look above
+
+    def fill_y_gaps(self, template):
+        """
+        Fix y coordinates to fill any gaps between elements.
+        """
+        self.sort(key=lambda x:x.y0)
+
+        # if top row right next to header then fill everything down
+        # otherwise assume centre align and spread evenly by height
+
+        topalign = False  # Will be aggregate of spacing vs row heights
+
+        for i, elem in enumerate(self):
+            elem_midy = int(elem.midy)  # Need static midpoint
+            elem.y0 = self[i-1].y1 + 1 if i != 0 else template.y0
+            if topalign:
+                continue  # True if only filling down required
+            if i == len(self) - 1:
+                elem.y1 = template.y1
+                continue  # True if currently on highest element
+
+            y1_ext =  elem_midy + elem_midy - elem.y0
+            next_y = self[i+1].y0 - 10  # The next available element
+
+            y1 = y1_ext if y1_ext < next_y else next_y
+            elem.y1 = template.approximate('y1', y1).y1
 
     def slice(self, x0=None, x1=None, y0=None, y1=None):
         """

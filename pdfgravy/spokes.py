@@ -38,9 +38,9 @@ class Spokes(Nest):
         lbls = [lbl]
         for x in [x for y in h_lbls for x in y]:  # Iterate over flattened list
             if not x.chk_intersection(lbl, y_only=True) or x in lbls:
-                continue
+                continue  # TODO - work in overlap discrimination: only match best
             lbls.append(x)
-        yield Spoke(lbls, data, orientation='h', val=data.midx)
+        yield Spoke(lbls, data, orientation='h', val=data.midy)
 
 class Spoke:
 
