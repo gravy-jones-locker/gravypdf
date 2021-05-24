@@ -91,6 +91,8 @@ class Page:
         
         self._lines = Nest(*lines, *rects_v, *rects_h)
 
+        self._lines.sort(key=lambda x:x.y0)
+
     @helper.lazy_property
     def chars(self):
         self._chars = self.objects.filter_attrs(cvttype='LTChar')

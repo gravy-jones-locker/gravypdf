@@ -19,7 +19,6 @@ class Table:
 
         self.y0, self.y1 = self.footer.y0, self.header.y1
 
-        # Work down from headers then across from labels for spokes
         self.find_spokes()
 
     def __repr__(self):
@@ -27,7 +26,7 @@ class Table:
 
     def find_spokes(self):
         """
-        Find vertical/horizontal spokes from vertical/horizontal labels.
+        Find vertical/horizontal spokes in the table.
         """
         self.spokes = Spokes()
 
@@ -40,16 +39,13 @@ class Table:
 
             self.spokes.add_vertical(v_lbl, v_data, self.page.words)
 
-        # Use split from vertical data to find horizontal labels
-        self.find_h_lbls(self.spokes.agg('x0', 'min'), v_lbl.y0)
-
-        for h_lbl in self.h_lbls.get_sorted(len, inv=True):
-            h_data = Grid(self.page, h_lbl.x1, None, h_lbl.y0, h_lbl.y1).rows
-
-            try:  # TODO solve errors here
-                self.spokes.add_horizontal(h_lbl, h_data, self.h_lbls)
-            except:
-                pass
+        x0, y1 = self.spokes.get_data_vertex()  # Cut to data limit
+        h_spokes = Grid(self.page, x0, None, self.y0, y1).rows
+        
+        h_lbls = self.get_h_lbls(x0, y1, h_spokes)
+        
+        for h_data in h_spokes:
+            self.spokes.add_horizontal(h_data, h_lbls)
 
     def get_v_spoke_data(self, hd, off_r):
         """
@@ -75,28 +71,21 @@ class Table:
 
         return Nest(*cols_r, *cols_l), off_r
 
-    def find_h_lbls(self, lbl_cutx, lbl_cuty):
+    def get_h_lbls(self, cutx, cuty, h_spokes):
         """
-        Given an x cut between labels/data find row labels.
+        Given their rough location and horizontal spokes find horizontal labels.
         """
-        self.h_lbls = Nest()
+        h_lbls = Nest()
 
-        lbl_grid = Grid(self.page, None, lbl_cutx, self.y0, lbl_cuty)
+        lbl_grid = Grid(self.page, None, cutx, self.y0, cuty)
+        for col in lbl_grid.cols:
+            
+            # Split each col into *exact*/label-friendly rows
+            col_lbls = lbl_grid.segment_col(col, h_spokes)
 
-        for col in sorted(lbl_grid.cols, key=lambda x: x.x0):
-            col_lbls = lbl_grid.segment_col(col)  # Split each col into rows
-            col_lbls = col_lbls.filter(lambda x: x)
+            h_lbls.append(col_lbls)
 
-            self.h_lbls.append(col_lbls)
-
-        # Snap the label lines into place
-        template = self.h_lbls.get_sorted(len, inv=True)
-        for col_lbls in self.h_lbls:
-            if col_lbls == template:
-                continue
-            col_lbls.fill_y_gaps(template)
-
-        self.h_lbls.set_bbox()
+        return h_lbls
 
     class Settings(Settings):
 

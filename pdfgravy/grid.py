@@ -64,20 +64,23 @@ class Grid:
         # Take the largest cluster of rows
         self.rows = rows.get_sorted(len, 0, inv=True)
 
-    def segment_col(self, col):
+    def segment_col(self, col, template=None):
         """
-        Segment a column by the horizontal position of words and lines within -
-        ***which column-by-column can be assumed to take only one place*** 
+        Segment a column by the horizontal position of words and lines within.
         """
         # Cluster words into rows with tolerance of roughly half normal spacing
-        rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)  # TODO develop the negative cluster
+        rows = col.cluster(lambda x: x.midy, (col.y1 - col.y0) / len(col) / 2)
         
         lns = self.lines_h.filter(Nested.chk_intersection, col, x_only=True)
-        lns = None #sorted(lns, key=lambda x: x.y0)
-
-        if lns:  # Slot rows between the available lines
+        
+        # Slot rows between the available lines
+        if lns:
             slots = [(x.y0, lns[i+1].y1) for i, x in enumerate(lns[:-1])]
-            rows = rows.slot_y(slots, missed='include')
+            rows = rows.slot_y(slots)
+
+        # Above 80% correspondence assume lined - otherwise fill gaps
+        if not lns or (len(lns) > 2 and len(lns) - 2 / len(rows) < 0.8):
+            rows.fill_y_gaps(template) 
 
         return rows
 
@@ -91,10 +94,11 @@ class Grid:
         # Add top/bottom bounding lines in case of absence
         hi, lo = copy(self._lines_h[0]), copy(self._lines_h[0])
 
-        hi.x0, hi.x1, hi.y0, hi.y1 = self.x0, self.x1, self.y1, self.y1
-        lo.x0, lo.x1, lo.y0, lo.y1 = self.x0, self.x1, self.y0, self.y0
+        hi.x0, hi.x1, hi.y0, hi.y1 = self.x0, self.x1, self.y1 + 1, self.y1 + 1
+        lo.x0, lo.x1, lo.y0, lo.y1 = self.x0, self.x1, self.y0 - 1, self.y0 - 1
         
-        self._lines_h.extend([hi, lo])
+        self._lines_h.insert(0, lo)  # Use indexed insert to maintain order
+        self._lines_h.insert(len(self._lines_h) - 1, hi)
     
     @helper.lazy_property
     def lines_v(self):

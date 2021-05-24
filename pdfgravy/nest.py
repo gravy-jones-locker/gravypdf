@@ -213,29 +213,25 @@ class Nest(MutableSequence, BasePDF):
             yield elem
 
     @Decorators.rehome
-    def slot_y(self, slots, missed):
+    def slot_y(self, slots):
         """
         Slot the members of the nest into the slots specified.
         """
         slots.sort(key=lambda x:x[0])
 
         for i, (slot_y0, slot_y1) in enumerate(slots):
-            if missed == 'include':
-                y0 = slots[i-1][1] if i > 0 else self.y0  # Look below
-                yield from self.slice(y0=y0, y1=slot_y0)
 
             filling = self.slice(y0=slot_y0, y1=slot_y1)
             
-            if filling:  # Return anything that fell in the slot as one item
-                filling.y0, filling.y1 = slot_y0, slot_y1
-                yield filling
-
-            if missed == 'include' and i == len(slots) - 1:  
-                yield from self.slice(y0=slot_y1, y1=self.y1)  # Look above
+            if filling:  # Yield filling individually but snapped to fill gap
+                filling[0].y0  = slot_y0
+                filling[-1].y1 = slot_y1
+                
+                yield from filling
 
     def fill_y_gaps(self, template):
         """
-        Fix y coordinates to fill any gaps between elements.
+        Fill any gaps between the y coordinates of the nested elements.
         """
         self.sort(key=lambda x:x.y0)
 
@@ -253,7 +249,7 @@ class Nest(MutableSequence, BasePDF):
                 elem.y1 = template.y1
                 continue  # True if currently on highest element
 
-            y1_ext =  elem_midy + elem_midy - elem.y0
+            y1_ext = elem_midy + elem_midy - elem.y0
             next_y = self[i+1].y0 - 10  # The next available element
 
             y1 = y1_ext if y1_ext < next_y else next_y

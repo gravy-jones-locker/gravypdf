@@ -31,16 +31,26 @@ class Spokes(Nest):
                 yield Spoke([lbl, *lbls], sub, orientation='v', val=sub.midx)  
 
     @Decorators.add_spoke
-    def add_horizontal(self, lbl, data, h_lbls):
+    def add_horizontal(self, data, h_lbls):
         """
         Add horizontal spokes consolidating aggregates as necessary
         """
-        lbls = [lbl]
+        lbls = []
         for x in [x for y in h_lbls for x in y]:  # Iterate over flattened list
-            if not x.chk_intersection(lbl, y_only=True) or x in lbls:
-                continue  # TODO - work in overlap discrimination: only match best
+            if not x.chk_intersection(data, y_only=True):
+                continue
             lbls.append(x)
-        yield Spoke(lbls, data, orientation='h', val=data.midy)
+        if lbls and data:
+            yield Spoke(lbls, data, orientation='h', val=data.midy)
+
+    def get_data_vertex(self):
+        """
+        Return left/topmost point of spoke data.
+        """
+        x = self.get_sorted(lambda x: x.x0).x0
+        y = self.get_sorted(lambda x: x.debug.y1).debug.y1
+
+        return x, y
 
 class Spoke:
 
