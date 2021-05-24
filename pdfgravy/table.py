@@ -20,7 +20,6 @@ class Table:
         self.y0, self.y1 = self.footer.y0, self.header.y1
 
         self.find_spokes()
-        pass
 
     def __repr__(self):
         return f'{self.title}, {self.y1}, {self.y0}'
@@ -78,14 +77,26 @@ class Table:
         """
         h_lbls = [[] for x in range(len(h_spokes))]
 
-        lbl_grid = Grid(self.page, None, cutx, self.y0, cuty)
+        lbl_grid = Grid(self.page, None, cutx, self.y0, cuty+5)
         for col in lbl_grid.cols:
             
             # Split each col into *exact*/label-friendly rows
-            for i, val in enumerate(lbl_grid.segment_col(col, h_spokes)):
+            rows = lbl_grid.segment_col(col)
+
+            vals = rows.snap(h_spokes, lambda x, y: abs(x.midy - y.midy))
+            aggs = [x for x in rows if x not in vals][::-1] 
+            
+            for i, val in enumerate(vals[::-1]):
+                if i != len(vals) - 1:
+                    lo = vals[::-1][i+1].y0
+                else:
+                    lo = val.y0
+                lo_aggs = [x for x in aggs if x.y0 > val.y0 and x.y1 >= lo]
+                if lo_aggs:
+                    val = [lo_aggs[-1], *val]
                 h_lbls[i].extend(val)
 
-        return h_lbls
+        return h_lbls[::-1]
 
     class Settings(Settings):
 

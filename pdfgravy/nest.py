@@ -236,11 +236,17 @@ class Nest(MutableSequence, BasePDF):
         necessary.
         """
         for elem in template:
-            dists = [abs(fn(elem, x)) for x in self]
-            closest = [i for i, x in enumerate(dists) if x == min(dists)][0]
-            yield self[closest]
+            matches = self.filter(Nested.chk_intersection, elem, y_only=True)
+            if len(matches) == 1:
+                yield matches[0]
+            
+            else:
+                dists = [abs(fn(elem, x)) for x in matches]
+                
+                closest = [i for i, x in enumerate(dists) if x == min(dists)][0]
+                yield matches[closest]
 
-    def fill_y_gaps(self, y0, y1):
+    def fill_y_gaps(self, lim_y0, lim_y1):
         """
         Fill any gaps between the y coordinates of the nested elements.
         """
@@ -253,15 +259,15 @@ class Nest(MutableSequence, BasePDF):
 
         for i, elem in enumerate(self):
             elem_midy = int(elem.midy)  # Need static midpoint
-            elem.y0 = self[i-1].y1 + 1 if i != 0 else y0
+            elem.y0 = self[i-1].y1 + 1 if i != 0 else lim_y0
             if topalign:
                 continue  # True if only filling down required
             if i == len(self) - 1:
-                elem.y1 = y1
+                elem.y1 = lim_y1
                 continue  # True if currently on highest element
 
             y1_ext = elem_midy + (elem_midy - elem.y0)
-            next_y = self[i+1].y0 - 10  #TODO improve padding  # The next available element
+            next_y = self[i+1].y0 - elem.h / 2  #TODO improve padding  # The next available element
 
             y1 = y1_ext if y1_ext < next_y else next_y
             elem.y1 = y1

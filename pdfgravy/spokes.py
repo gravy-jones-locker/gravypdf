@@ -42,7 +42,7 @@ class Spokes(Nest):
         Return left/topmost point of spoke data.
         """
         x = self.get_sorted(lambda x: x.x0).x0
-        y = self.get_sorted(lambda x: x.debug.y1).debug.y1
+        y = self.get_sorted(lambda x: x.lbls.y0).lbls.y0
 
         return x, y
 
