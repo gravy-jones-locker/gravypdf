@@ -20,6 +20,7 @@ class Table:
         self.y0, self.y1 = self.footer.y0, self.header.y1
 
         self.find_spokes()
+        pass
 
     def __repr__(self):
         return f'{self.title}, {self.y1}, {self.y0}'
@@ -44,8 +45,8 @@ class Table:
         
         h_lbls = self.get_h_lbls(x0, y1, h_spokes)
         
-        for h_data in h_spokes:
-            self.spokes.add_horizontal(h_data, h_lbls)
+        for i, h_data in enumerate(h_spokes):
+            self.spokes.add_horizontal(h_data, h_lbls[i])
 
     def get_v_spoke_data(self, hd, off_r):
         """
@@ -75,15 +76,14 @@ class Table:
         """
         Given their rough location and horizontal spokes find horizontal labels.
         """
-        h_lbls = Nest()
+        h_lbls = [[] for x in range(len(h_spokes))]
 
         lbl_grid = Grid(self.page, None, cutx, self.y0, cuty)
         for col in lbl_grid.cols:
             
             # Split each col into *exact*/label-friendly rows
-            col_lbls = lbl_grid.segment_col(col, h_spokes)
-
-            h_lbls.append(col_lbls)
+            for i, val in enumerate(lbl_grid.segment_col(col, h_spokes)):
+                h_lbls[i].extend(val)
 
         return h_lbls
 

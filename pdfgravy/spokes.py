@@ -35,13 +35,7 @@ class Spokes(Nest):
         """
         Add horizontal spokes consolidating aggregates as necessary
         """
-        lbls = []
-        for x in [x for y in h_lbls for x in y]:  # Iterate over flattened list
-            if not x.chk_intersection(data, y_only=True):
-                continue
-            lbls.append(x)
-        if lbls and data:
-            yield Spoke(lbls, data, orientation='h', val=data.midy)
+        yield Spoke(h_lbls, data, orientation='h', val=data.midy)
 
     def get_data_vertex(self):
         """

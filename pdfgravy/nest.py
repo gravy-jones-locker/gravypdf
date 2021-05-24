@@ -229,7 +229,18 @@ class Nest(MutableSequence, BasePDF):
                 
                 yield from filling
 
-    def fill_y_gaps(self, template):
+    @Decorators.rehome
+    def snap(self, template, fn):
+        """
+        Snap the nested elements to the template - multiplying/duplicating as 
+        necessary.
+        """
+        for elem in template:
+            dists = [abs(fn(elem, x)) for x in self]
+            closest = [i for i, x in enumerate(dists) if x == min(dists)][0]
+            yield self[closest]
+
+    def fill_y_gaps(self, y0, y1):
         """
         Fill any gaps between the y coordinates of the nested elements.
         """
@@ -242,18 +253,18 @@ class Nest(MutableSequence, BasePDF):
 
         for i, elem in enumerate(self):
             elem_midy = int(elem.midy)  # Need static midpoint
-            elem.y0 = self[i-1].y1 + 1 if i != 0 else template.y0
+            elem.y0 = self[i-1].y1 + 1 if i != 0 else y0
             if topalign:
                 continue  # True if only filling down required
             if i == len(self) - 1:
-                elem.y1 = template.y1
+                elem.y1 = y1
                 continue  # True if currently on highest element
 
-            y1_ext = elem_midy + elem_midy - elem.y0
-            next_y = self[i+1].y0 - 10  # The next available element
+            y1_ext = elem_midy + (elem_midy - elem.y0)
+            next_y = self[i+1].y0 - 10  #TODO improve padding  # The next available element
 
             y1 = y1_ext if y1_ext < next_y else next_y
-            elem.y1 = template.approximate('y1', y1).y1
+            elem.y1 = y1
 
     def slice(self, x0=None, x1=None, y0=None, y1=None):
         """

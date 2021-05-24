@@ -80,7 +80,10 @@ class Grid:
 
         # Above 80% correspondence assume lined - otherwise fill gaps
         if not lns or (len(lns) > 2 and len(lns) - 2 / len(rows) < 0.8):
-            rows.fill_y_gaps(template) 
+            rows.fill_y_gaps(self.y0, self.y1)
+
+        if template:
+            rows = rows.snap(template, lambda x, y: abs(x.midy - y.midy)) 
 
         return rows
 
