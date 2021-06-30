@@ -161,20 +161,52 @@ class Nest(MutableSequence, BasePDF):
         return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
 
     @Decorators.rehome
-    def cluster(self, fn, tol=5, inv=False):
+    def cluster(self, fn, inv=False):
         """
         Group nested elements by the attribute and function specified.
         """
         ref_ls = []  # Build list of points separated by tolerance
         
         for elem in self:
-            if not any([x.clust(elem, fn, tol) for x in ref_ls]):
+            if not any([fn(elem, x) for x in ref_ls]):
                 ref_ls.append(elem)
 
-        for ref in sorted(ref_ls, key=lambda x: fn(x), reverse=inv):
-            cluster_ls = [x for x in self if x.clust(ref, fn, tol)]
+        for ref in ref_ls:
+            cluster_ls = [x for x in self if fn(ref, x) or x == ref]
             
             yield type(self)(*cluster_ls)
+
+    @Decorators.rehome
+    def combine(self):
+        """
+        Combine Nested elements into one instance.
+        """
+        for sub_elem in [x for y in self for x in y]:
+            yield sub_elem        
+
+    @Decorators.rehome
+    def negative_cluster(self, y_gap, x_gap):
+        """
+        Cluster items which do not have the specified gap between them.
+        """
+        def chkGap(x, y):
+            chk_y = abs(x.y1-y.y0) < y_gap or x.y1 > y.y0 if y_gap else True
+            chk_x = abs(x.x0-y.x0) < x_gap if x_gap else True
+            return chk_y and chk_x
+
+        self.sort(key=lambda x:x.y1, reverse=True)
+        ls = self._ls
+        while ls:
+            cluster_ls = Nest(ls.pop(0))
+            new = []
+            for elem in ls:
+                if not chkGap(elem, cluster_ls):
+                    new.append(elem)
+                    continue
+                cluster_ls.addtwigs(elem)
+                cluster_ls.set_bbox()
+            yield type(self)(*cluster_ls)    
+            ls = new       
 
     @Decorators.rehome
     def denest(self, attr='__len__', flatten=False, cast=False):
@@ -357,15 +389,6 @@ class Nested(BasePDF):
 
         if type(elem).__name__.startswith('LT'):
             setattr(self, 'cvttype', type(elem).__name__)
-
-    def clust(self, ref, fn, tol=5):
-        """
-        Returns true if the two elements 'clust' - i.e are within clustering.
-        """
-        val = fn(self)
-        ref_val = fn(ref)
-
-        return abs(val - ref_val) <= tol
 
     def chk_intersection(self, ref, x_only=False, y_only=False):
         """

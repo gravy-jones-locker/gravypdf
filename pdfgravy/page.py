@@ -1,10 +1,8 @@
-from pdfgravy.settings import Settings
-from pdfminer.pdfinterp import PDFPageInterpreter
-from pdfminer.converter import PDFPageAggregator
 from .nest import Nest, Nested
 from .table import Table
 from .words import Word, Words, Header
 from . import helper
+import numpy as np
 
 class Page:
 
@@ -12,17 +10,18 @@ class Page:
     Access to page-level operations all conducted through this class.
     """
 
-    def __init__(self, pdf, page_obj, page_no):
+    def __init__(self, page_obj, page_no, device, interpreter):
         """
         Store important info from the pdfminer page object.
         """
-        self.page_obj = page_obj
-        self.pdf = pdf
-
         self.page_no  = page_no
         self.rotation = page_obj.attrs.get("Rotate", 0) % 360
 
         self.w, self.h = page_obj.mediabox[2:]
+
+        # Use pdfminer API to load precise layout of elements on page
+        interpreter.process_page(page_obj)
+        self.layout = device.get_result()
 
     def extract_tables(self, user_settings={}):
         """
@@ -60,18 +59,13 @@ class Page:
             
             self.tbls[i] = row.cvt_header2tbl(prev, rows)
 
+    def segment_by_line(self, y_gap=10, x_gap=10):
+        """
+        Split the page into segments based on the spacing of text lines.
+        """
+        return self.words.negative_cluster(y_gap, x_gap)
+
     ####  objects from pdf layer evaluated then stored on-demand/lazily  ####
-        
-    @helper.lazy_property
-    def layout(self):
-        """
-        Use pdfminer device/interpreter logic to get layout.
-        """
-        device = PDFPageAggregator(self.pdf.rsrcmgr, laparams=self.pdf.laparam)
-        interpreter = PDFPageInterpreter(self.pdf.rsrcmgr, device)
-    
-        interpreter.process_page(self.page_obj)
-        self._layout = device.get_result()
 
     @helper.lazy_property
     def objects(self):
