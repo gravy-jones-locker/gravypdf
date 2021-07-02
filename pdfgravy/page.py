@@ -63,7 +63,58 @@ class Page:
         """
         Split the page into segments based on the spacing of text lines.
         """
-        return self.words.negative_cluster(y_gap, x_gap)
+        segs  = self.words.negative_cluster(y_gap, x_gap)
+        lines = self.lines.filter(lambda x: x.orientation == 'h') 
+
+        testLn = lambda x, y: x.chk_intersection(y) and y.w >= 0.7 * x.w
+        out = []
+        for seg in segs:
+            xls = [x for x in lines if testLn(seg, x)]
+            if not xls:
+                out.append(seg)
+            else:
+                for ln in xls:
+                    hi = seg.filter(lambda x: x.y0 > ln.y1)
+                    out.append(hi)
+                out.append(seg.filter(lambda x: x.y0 <= ln.y1))
+        return Words(*[x for x in out if x])
+
+    def parse_fonts(self):
+        """
+        Identify which fonts in the page are headers etc.
+        """
+        fs = []
+        for f, f_size in set([(getattr(x, 'fontname', None), getattr(x, 'h', None)) for y in self.words for x in y]):
+            if not f or not f_size or (f, round(f_size, 0)) in fs:
+                continue
+            fs.append((f, round(f_size, 0)))
+
+        fonts = {}
+        for f, f_size in fs:
+            ws = self.words.filter(lambda x: x[0].fontname == f and round(x[0].h, 0) == f_size)
+            if not ws:
+                continue
+            fname = f'{f}_{f_size}'
+            fonts[fname] = {}
+            fonts[fname]["count"] = len(ws)
+            fonts[fname]["size"]  = f_size
+            fonts[fname]["is_banner"] = ws.y0 > 500
+
+        for k, f in fonts.items():
+            if f["count"] == max([v["count"] for k, v in fonts.items()]):
+                fonts[k]["type"] = "body"
+            elif fonts[k]["is_banner"]:
+                fonts[k]["type"] = "banner"
+        
+        std_fonts = {k:v for k, v in fonts.items() if not "type" in v}
+        sizes = [v["size"] for v in std_fonts.values()]
+        sizes.sort(reverse=True)
+        
+        for k, v in std_fonts.items():
+            header_no = [i for i, s in enumerate(sizes) if s == v["size"]][0]
+            fonts[k]["type"] = f'h{header_no+1}'
+
+        self.fonts = fonts
 
     ####  objects from pdf layer evaluated then stored on-demand/lazily  ####
 
@@ -94,6 +145,10 @@ class Page:
     @helper.lazy_property
     def text(self):
         self._text = self.objects.filter_attrs(cvttype='LTTextLineHorizontal')
+
+    @helper.lazy_property
+    def boxes(self):
+        self._boxes = self.objects.filter_attrs(cvttype='LTTextBoxHorizontal')
 
     @helper.lazy_property
     def words(self):

@@ -8,7 +8,7 @@ def init_interpreter():
     Load pdfminer6 interpreter for layout/content parsing.
     """
     rsrcmgr  = PDFResourceManager()
-    laparams = LAParams(char_margin=1)
+    laparams = LAParams(char_margin=1, line_margin=2)
     
     device = PDFPageAggregator(rsrcmgr, laparams=laparams)
     interpreter = PDFPageInterpreter(rsrcmgr, device)

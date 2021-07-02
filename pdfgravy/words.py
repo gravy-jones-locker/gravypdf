@@ -83,6 +83,17 @@ class Word(Nest, Nested):
         """
         return not all([x.is_wspace() for x in self])
 
+    def extract_chars(self, char_str):
+        """
+        Remove and return the specified characters from the Word instance.
+        """
+        i = self.text.find(char_str)
+        new = self[i:i+len(char_str)]
+
+        self = Word(*self[:i], *self[i+len(char_str):])
+
+        return new
+
     @Nest.Decorators.set_bbox
     def rm_wspace(self):
         """
@@ -100,6 +111,21 @@ class Word(Nest, Nested):
 
     def get_text(self):
         return ''.join([x.text for x in self])   
+
+    @property
+    def font(self):
+        """
+        Find and return the most common font/size in the word.
+        """
+        fonts = [f'{x.fontname}_{round(x.h, 0)}' for x in self]
+        sel = set(fonts)
+        if len(sel) == 1:
+            return str(sel).strip('{}\'')
+
+        count = [(y, len([x for x in fonts if x == y])) for y in sel]
+        count.sort(key=lambda x: x[1], reverse=True)
+        
+        return count[0][0]
 
 class Char(Nested):
 

@@ -172,7 +172,7 @@ class Nest(MutableSequence, BasePDF):
                 ref_ls.append(elem)
 
         for ref in ref_ls:
-            cluster_ls = [x for x in self if fn(ref, x) or x == ref]
+            cluster_ls = [x for x in self if fn(x, ref) or x == ref]
             
             yield type(self)(*cluster_ls)
 
