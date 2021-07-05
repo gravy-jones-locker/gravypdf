@@ -161,20 +161,32 @@ class Nest(MutableSequence, BasePDF):
         return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
 
     @Decorators.rehome
-    def cluster(self, fn, inv=False):
+    def cluster(self, fn, inv=False, dedupe=False, stretchy=False):
         """
         Group nested elements by the attribute and function specified.
         """
-        ref_ls = []  # Build list of points separated by tolerance
+        def chk_elem(x, y):
+            return any([fn(x, z) for z in y]) if stretchy else fn(x, y[0])
         
-        for elem in self:
-            if not any([fn(elem, x) for x in ref_ls]):
-                ref_ls.append(elem)
-
-        for ref in ref_ls:
-            cluster_ls = [x for x in self if fn(x, ref) or x == ref]
+        ref_ls = []  # Build list of points separated by tolerance
+        for i, elem in enumerate(self):
+            if i == 0:
+                ref_ls.append([elem])
+                continue
+            matches = [i for i, x in enumerate(ref_ls) if chk_elem(elem, x)]
+            if not matches:
+                ref_ls.append([elem])
+            elif stretchy:
+                ref_ls[matches[0]].append(elem)
             
-            yield type(self)(*cluster_ls)
+        skip = []
+        for ref in ref_ls:
+            cluster_ls = [x for x in self if x in ref or chk_elem(x, ref)]
+            if dedupe:
+                cluster_ls = [x for x in cluster_ls if x not in skip]
+            skip.extend(cluster_ls)
+            if cluster_ls:
+                yield type(self)(*cluster_ls)
 
     @Decorators.rehome
     def combine(self):
@@ -195,7 +207,7 @@ class Nest(MutableSequence, BasePDF):
             return chk_y and chk_x
 
         self.sort(key=lambda x:x.y1, reverse=True)
-        ls = self._ls
+        ls = self._ls.copy()
         while ls:
             cluster_ls = Nest(ls.pop(0))
             new = []

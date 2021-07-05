@@ -59,7 +59,7 @@ class Page:
             
             self.tbls[i] = row.cvt_header2tbl(prev, rows)
 
-    def segment_by_line(self, y_gap=10, x_gap=10):
+    def segment(self, y_gap=10, x_gap=10):
         """
         Split the page into segments based on the spacing of text lines.
         """
@@ -77,6 +77,7 @@ class Page:
                     hi = seg.filter(lambda x: x.y0 > ln.y1)
                     out.append(hi)
                 out.append(seg.filter(lambda x: x.y0 <= ln.y1))
+        
         return Words(*[x for x in out if x])
 
     def parse_fonts(self):
@@ -98,21 +99,10 @@ class Page:
             fonts[fname] = {}
             fonts[fname]["count"] = len(ws)
             fonts[fname]["size"]  = f_size
-            fonts[fname]["is_banner"] = ws.y0 > 500
 
         for k, f in fonts.items():
             if f["count"] == max([v["count"] for k, v in fonts.items()]):
                 fonts[k]["type"] = "body"
-            elif fonts[k]["is_banner"]:
-                fonts[k]["type"] = "banner"
-        
-        std_fonts = {k:v for k, v in fonts.items() if not "type" in v}
-        sizes = [v["size"] for v in std_fonts.values()]
-        sizes.sort(reverse=True)
-        
-        for k, v in std_fonts.items():
-            header_no = [i for i, s in enumerate(sizes) if s == v["size"]][0]
-            fonts[k]["type"] = f'h{header_no+1}'
 
         self.fonts = fonts
 
