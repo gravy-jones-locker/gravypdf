@@ -36,8 +36,17 @@ class PDF:
         fonts = {}
         for page in self.pages:
             page.parse_fonts()
-            for font in [f for f in page.fonts if f not in fonts]:
-                fonts[font] = page.fonts[font]
+            for fontname, fontstats in page.fonts.items():
+                if fontname not in fonts:
+                    fonts[fontname] = fontstats
+                else:
+                    fonts[fontname]["count"] += fontstats["count"] 
+
+        body_count = max([v["count"] for k, v in fonts.items() if not v["bold"] and not v["italic"]])
+        for k, v in fonts.items():
+            if v["count"] == body_count:
+                v["type"] = 'body'
+                break
 
         std_fonts = {k:v for k, v in fonts.items() if not "type" in v}
         sizes = [v["size"] for v in std_fonts.values()]

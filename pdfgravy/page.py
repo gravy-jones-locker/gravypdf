@@ -21,7 +21,16 @@ class Page:
 
         # Use pdfminer API to load precise layout of elements on page
         interpreter.process_page(page_obj)
-        self.layout = device.get_result()
+        layout = device.get_result()
+
+        objects = Nest(*layout._objs, cast=True).denest('_objs', cast=True)
+        self.objects = objects.filter(lambda x:x.cvttype in [
+                                                'LTLine',
+                                                'LTRect',
+                                                'LTTextBoxHorizontal',
+                                                'LTTextLineHorizontal',
+                                                'LTChar'
+                                                ])
 
     def extract_tables(self, user_settings={}):
         """
@@ -68,15 +77,23 @@ class Page:
 
         testLn = lambda x, y: x.chk_intersection(y) and y.w >= 0.7 * x.w
         out = []
-        for seg in segs:
+        for i, seg in enumerate(segs):
+            if len(seg) == 1 and i < len(segs) - 1:
+                segs[i+1].insert(0, seg[0])
+                continue
             xls = [x for x in lines if testLn(seg, x)]
-            if not xls:
+            if not xls and seg:
                 out.append(seg)
             else:
+                lo = seg
                 for ln in xls:
-                    hi = seg.filter(lambda x: x.y0 > ln.y1)
-                    out.append(hi)
-                out.append(seg.filter(lambda x: x.y0 <= ln.y1))
+                    hi, lo = lo.split(lambda x: x.y0 > ln.y1 + 5)
+                    if hi:
+                        hi.set_bbox()
+                        out.append(hi)
+                if lo:
+                    lo.set_bbox()
+                    out.append(lo)
         
         return Words(*[x for x in out if x])
 
@@ -84,34 +101,29 @@ class Page:
         """
         Identify which fonts in the page are headers etc.
         """
-        fs = []
-        for f, f_size in set([(getattr(x, 'fontname', None), getattr(x, 'h', None)) for y in self.words for x in y]):
-            if not f or not f_size or (f, round(f_size, 0)) in fs:
-                continue
-            fs.append((f, round(f_size, 0)))
+        fs = set([x.font for x in self.words])
 
         fonts = {}
-        for f, f_size in fs:
-            ws = self.words.filter(lambda x: x[0].fontname == f and round(x[0].h, 0) == f_size)
+        for font in fs:
+            if not font:
+                continue
+            ws = self.words.filter(lambda x: x.font == font)
             if not ws:
                 continue
-            fname = f'{f}_{f_size}'
-            fonts[fname] = {}
-            fonts[fname]["count"] = len(ws)
-            fonts[fname]["size"]  = f_size
+            fonts[font] = {}
+            fonts[font]["count"] = len([x for y in ws for x in y])
+            fonts[font]["size"]  = int(font.split('_')[1])
+            fonts[font]["bold"] = 'Bold' in font
+            fonts[font]["italic"] = 'Italic' in font
+            fonts[font]["top_only"] = ws.y0 > 500
 
         for k, f in fonts.items():
-            if f["count"] == max([v["count"] for k, v in fonts.items()]):
-                fonts[k]["type"] = "body"
-
+            if self.page_no == 1 and f["top_only"] and f["size"] >= 16:
+                fonts[k]["type"] = "banner"
+        
         self.fonts = fonts
 
     ####  objects from pdf layer evaluated then stored on-demand/lazily  ####
-
-    @helper.lazy_property
-    def objects(self):
-        self._objects = Nest(*self.layout._objs, cast=True)
-        self._objects = self._objects.denest('_objs', cast=True)
 
     @helper.lazy_property
     def lines(self):
@@ -143,4 +155,5 @@ class Page:
     @helper.lazy_property
     def words(self):
         ws = Words(*[Word(*x._objs, cast=True) for x in self.text], cast=True)
-        self._words = ws.filter(Word.has_txt)
+        self._words = ws.clean()
+        self._words = self._words.split_fonts()

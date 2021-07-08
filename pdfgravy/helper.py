@@ -37,3 +37,6 @@ def chk_sys_it(it):
     Returns True if the input is a builtin iterable.
     """
     return hasattr(it, '__len__') and type(it).__module__ == 'builtins'
+
+def round_two(x):
+    return int(((x + 1) // 2) * 2)

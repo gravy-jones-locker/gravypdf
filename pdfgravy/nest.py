@@ -161,6 +161,23 @@ class Nest(MutableSequence, BasePDF):
         return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
 
     @Decorators.rehome
+    def flexi_sort(self, fn, tol):
+        """
+        Sort with the tolerance given.
+        """
+        ref = [fn(x) for x in self]
+        for i in range(len(ref)):
+            already_sorted = True
+            for j in range(len(ref) - i - 1):
+                if ref[j] > ref[j+1] + tol:
+                    ref[j+1], ref[j] = ref[j], ref[j+1]
+                    self[j+1], self[j] = self[j], self[j+1]
+                    already_sorted = False
+            if already_sorted:
+                break
+        return self       
+
+    @Decorators.rehome
     def cluster(self, fn, inv=False, dedupe=False, stretchy=False):
         """
         Group nested elements by the attribute and function specified.
