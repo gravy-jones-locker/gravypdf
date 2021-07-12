@@ -75,7 +75,7 @@ class Page:
         segs  = self.words.negative_cluster(y_gap, x_gap)
         lines = self.lines.filter(lambda x: x.orientation == 'h') 
 
-        testLn = lambda x, y: x.chk_intersection(y) and y.w >= 0.7 * x.w
+        testLn = lambda x, y: x.chk_intersection(y)# and y.w >= 0.7 * x.w
         out = []
         for i, seg in enumerate(segs):
             if len(seg) == 1 and i < len(segs) - 1:
@@ -84,15 +84,14 @@ class Page:
             xls = [x for x in lines if testLn(seg, x)]
             if not xls and seg:
                 out.append(seg)
-            else:
+            elif seg:
+                xls.sort(key=lambda x:x.y1, reverse=True)
                 lo = seg
                 for ln in xls:
                     hi, lo = lo.split(lambda x: x.y0 > ln.y1 + 5)
                     if hi:
-                        hi.set_bbox()
                         out.append(hi)
                 if lo:
-                    lo.set_bbox()
                     out.append(lo)
         
         return Words(*[x for x in out if x])

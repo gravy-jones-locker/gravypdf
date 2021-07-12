@@ -243,11 +243,11 @@ class Char(Nested):
         else:
             fname = self.fontname
 
-        self._font = f'{fname}_{helper.round_two(self.h)}'
+        self._font = f'{fname}_{int(round(self.h, 0))}'
 
     @helper.lazy_property
     def caps(self):
-        self._caps = 'CAPS' if self.text.isupper() else ''
+        self._caps = 'U' if self.text.isupper() else 'L'
 
 Words.nested = Word  # Forward declaration workaround
 Word.nested  = Char

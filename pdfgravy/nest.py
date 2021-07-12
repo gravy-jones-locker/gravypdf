@@ -353,7 +353,10 @@ class Nest(MutableSequence, BasePDF):
         Apply filter and return *two* nests: true results, false results.
         """
         out_i  = self.filter(fn, *args, **filters)
+        
         out_ii = self.copy(_ls=[x for x in self if x not in out_i])
+        if out_ii:
+            out_ii.set_bbox()
 
         return out_i, out_ii
 
