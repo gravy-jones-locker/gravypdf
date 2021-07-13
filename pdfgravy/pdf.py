@@ -3,8 +3,11 @@ from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfpage import PDFPage
 from .settings import Settings
 from .page import Page
+from .words import Words
+from .nest import Nest
 from . import utils
 from . import helper
+import statistics as stats
 
 class PDF:
 
@@ -27,6 +30,73 @@ class PDF:
                     continue
                 p = Page(page, i+1, device, interpreter)  # +1 = page_no
                 self.pages.append(p)
+
+    def aggregate_elems(self, attr, parent=Nest):
+        """
+        Aggregate the elements in the various pages and offset as appropriate.
+        """
+        off = 0
+        out = parent()
+        for i, p in enumerate(self.pages[::-1]):
+            if i == 0:
+                ad_elems = [x for x in getattr(p, attr)]
+            else:
+                ad_elems = [x.offset(y=off) for x in getattr(p, attr)]
+            
+            out.extend(ad_elems)
+            off += p.words[0].y1 + 10 if p.words else 0
+
+        out.sort(key=lambda x: x.y1, reverse=True)
+        out.set_bbox()
+        
+        return out
+
+    @helper.lazy_property
+    def page_h(self):
+        self._page_h = stats.median([x.h for x in self.pages])
+
+    @helper.lazy_property
+    def lines(self):
+        self._lines = self.aggregate_elems('lines')
+
+    @helper.lazy_property
+    def words(self):
+        self._words = self.aggregate_elems('words', Words)
+
+    @helper.lazy_property
+    def headers(self):
+        """
+        Find obvious top-level headers using any keywords passed.
+        """
+        lns = self.lines.filter(lambda x:x.orientation == 'h')
+        refs = Nest()
+        for i, word in enumerate(self.words):
+            if i == len(self.words) - 1:
+                continue
+            adj = [self.words[i-1], self.words[i+1]]
+            chk_lone = not any([abs(x.y0-word.y0) < 5 for x in adj if len(x.text.strip().split(' ')) > 2])
+            chk_len  = len(word.text.strip().split(' ')) < 6
+            if not chk_lone or not chk_len:
+                continue
+            word.is_spaced = self.words[i-1].y0 - word.y1 > 10
+            word.is_header = word.text.lower() in self.settings["headers"]
+            word.is_lined  = any([abs(x.y1-word.y0) < 5 for x in lns]) 
+            refs.append(word)
+
+        f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:])    
+        f_refs = f_refs.filter(lambda x: any([y.is_header for y in x]))
+        font   = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
+
+        self._headers = Words()
+        for word in refs:
+            if word.is_header:
+                self._headers.append(word)
+                continue
+            chk_font = word.font == font
+            if not sum([chk_font, word.is_spaced, word.is_lined]) > 1:
+                continue
+            self._headers.append(word)
+        self._headers.set_bbox()
 
     @helper.lazy_property
     def fonts(self):
@@ -68,4 +138,5 @@ class PDF:
         defaults = {
             "precision": 0.001,
             "pages": None,
+            "headers": None
         }

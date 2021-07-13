@@ -2,8 +2,15 @@ from .nest import Nest, Nested
 import re
 import statistics as stats
 from . import helper
+import numpy as np
 
 class Word(Nest, Nested):
+
+    def test_alphanum(self):
+        """
+        Test whether at least part of the 'word' is alphanumeric.
+        """
+        return any([x.test_alphanum() for x in self])
 
     def lookup(self, lookup_strs):
         """
@@ -109,7 +116,6 @@ class Words(Word, Nested):
         """
         Split anything grouped together which has a different font.
         """
-        testC = lambda x: x.isascii() and (x.isdigit() or x.isalpha())
         for word in self:
             if len(set([x.font for x in word])) == 1:
                 yield word
@@ -118,7 +124,7 @@ class Words(Word, Nested):
             font_changes = [0]
             ref_i = None
             for i in range(1, len(word)):
-                if not testC(word[i].text):
+                if not word[i].test_alphanum():
                     continue
                 if ref_i == None:
                     ref_i = i
@@ -157,6 +163,23 @@ class Words(Word, Nested):
 
         return len([x for x in hits if x])
 
+    @Nest.Decorators.rehome
+    def sort_by_space(self):
+        """
+        Return words sorted by space between them (hi --> lo).
+        """
+        refs = self.get_delta(lambda x, y: abs(x.midy-y.midy))
+        refs = [0] + refs + [0]
+        
+        for i, word in enumerate(self):
+            if word.x0 > 320 or len(word.text.strip()) < 3:
+                word.spc = 0
+            else:
+                word.spc = refs[i] * refs[i+1]
+
+        for word in sorted(self, key=lambda x:x.spc, reverse=True):
+            yield word
+
     def shares_header(self, header):
         """
         Check whether the header structure is (roughly) matched.
@@ -165,6 +188,21 @@ class Words(Word, Nested):
 
     def get_text(self):
         return ' '.join([x.text for x in self])
+
+    def lbl_ends(self):
+        """
+        Label the bottomost/page lines as end lines.
+        """
+        p_str = r'(?:page|p)\.{0,1}\s{0,1}\d+'
+        for i, word in enumerate(sorted(self, key=lambda x:x.y0)):
+            word.p_break = i == 0
+            if i > 1:
+                word.is_end = False
+            elif i == 0:
+                word.is_end = True
+            elif i == 1:
+                pw = self[-1]
+                word.is_end = bool(re.findall(p_str, pw.text.lower()))
 
     @Nest.Decorators.rehome
     def split_spaces(self):
@@ -235,6 +273,10 @@ class Char(Nested):
 
         self.fontname = prev_char.fontname
         return self
+
+    def test_alphanum(self):
+        t = self.text
+        return t.isascii() and (t.isdigit() or t.isalpha())
 
     @helper.lazy_property
     def font(self):

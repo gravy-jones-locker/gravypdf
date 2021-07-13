@@ -422,6 +422,17 @@ class Nested(BasePDF):
         if type(elem).__name__.startswith('LT'):
             setattr(self, 'cvttype', type(elem).__name__)
 
+    def offset(self, y=None, x=None):
+        """
+        Offset the position of the element by the amount specified.
+        """
+        if y != None:
+            self.y0, self.y1 = self.y0 + y, self.y1 + y
+        if x != None:
+            self.x0, self.x1 = self.x0 + x, self.x1 + x
+        
+        return self
+
     def chk_intersection(self, ref, x_only=False, y_only=False):
         """
         Return True if the element is inside the coordinates passed.
@@ -445,6 +456,16 @@ class Nested(BasePDF):
         if axis == 'y':
             self.y0, self.y1 = self.midy, self.midy
         
+        return self
+
+    def get_coords_from_bbox(self):
+        """
+        Interpolate coordinates from an object's bounding box.
+        """
+        for attr, val in zip(['x0', 'y0', 'x1', 'y1'], self.bbox):
+            if hasattr(self, attr):
+                continue
+            setattr(self, attr, val)
         return self
 
     @property

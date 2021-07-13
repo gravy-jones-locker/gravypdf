@@ -129,6 +129,8 @@ class Page:
         lines = self.objects.filter_attrs(cvttype='LTLine')
         rects = self.objects.filter_attrs(cvttype='LTRect')
         
+        rects.apply_nested(Nested.get_coords_from_bbox)
+        
         rects_v = rects.filter(lambda x: x.x1 - x.x0 < 3)
         rects_h = rects.filter(lambda x: x.y1 - x.y0 < 3)
 
@@ -136,7 +138,6 @@ class Page:
         rects_h.apply_nested(Nested.squash, 'y')
         
         self._lines = Nest(*lines, *rects_v, *rects_h)
-
         self._lines.sort(key=lambda x:x.y0)
 
     @helper.lazy_property
@@ -155,4 +156,5 @@ class Page:
     def words(self):
         ws = Words(*[Word(*x._objs, cast=True) for x in self.text], cast=True)
         self._words = ws.clean()
-        self._words = self._words.split_fonts()
+        self._words = self._words.split_fonts().filter(Word.test_alphanum)
+        self._words.lbl_ends()
