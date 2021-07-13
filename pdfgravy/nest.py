@@ -36,7 +36,7 @@ class Nest(MutableSequence, BasePDF):
     """
 
     class Decorators:
-
+        
         @classmethod
         def set_bbox(decs, func):
             """
@@ -53,14 +53,14 @@ class Nest(MutableSequence, BasePDF):
             """
             Simplifies functions which synthesise new nests from existing items.
             """
-            @decs.set_bbox
             def inner(cls, *args, **kwargs):
                 out = type(cls)()
                 for elem in func(cls, *args, **kwargs):
                     out.addtwigs(elem)
+                out.set_bbox()
                 return out
             return inner
-
+    
     def __init__(self, *elems, **kwargs):
         """
         Compile an iterable into a nest for the first time.
@@ -161,7 +161,7 @@ class Nest(MutableSequence, BasePDF):
         return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
 
     @Decorators.rehome
-    def flexi_sort(self, fn, tol):
+    def flexi_sort(self, fn, tol, **kwargs):
         """
         Sort with the tolerance given.
         """
@@ -169,13 +169,13 @@ class Nest(MutableSequence, BasePDF):
         for i in range(len(ref)):
             already_sorted = True
             for j in range(len(ref) - i - 1):
-                if ref[j] > ref[j+1] + tol:
+                if ref[j] < (ref[j+1] - tol):
                     ref[j+1], ref[j] = ref[j], ref[j+1]
                     self[j+1], self[j] = self[j], self[j+1]
                     already_sorted = False
             if already_sorted:
                 break
-        return self       
+        return self[::-1] if not kwargs.get('reverse') else self      
 
     @Decorators.rehome
     def cluster(self, fn, inv=False, dedupe=False, stretchy=False):
@@ -214,7 +214,7 @@ class Nest(MutableSequence, BasePDF):
             yield sub_elem        
 
     @Decorators.rehome
-    def negative_cluster(self, y_gap, x_gap):
+    def neg_cluster(self, y_gap=None, x_gap=None, fn=None):
         """
         Cluster items which do not have the specified gap between them.
         """
@@ -223,19 +223,17 @@ class Nest(MutableSequence, BasePDF):
             chk_x = abs(x.x0-y.x0) < x_gap if x_gap else True
             return chk_y and chk_x
 
-        self.sort(key=lambda x:x.y1, reverse=True)
-        ls = self._ls.copy()
-        while ls:
-            cluster_ls = Nest(ls.pop(0))
-            new = []
-            for elem in ls:
-                if not chkGap(elem, cluster_ls):
-                    new.append(elem)
-                    continue
-                cluster_ls.addtwigs(elem)
-                cluster_ls.set_bbox()
-            yield type(self)(*cluster_ls)    
-            ls = new       
+        self.sort(key=lambda x:x.x0)
+        self = self.flexi_sort(lambda x:x.y1, tol=5, reverse=True)
+
+        out = []
+        for i, elem in enumerate(self):
+            if i == 0 or (not chkGap(elem, out[-1]) and fn(elem)):
+                out.append(type(self)(elem))
+                continue
+            out[-1].append(elem)
+            out[-1].set_bbox()
+        yield from out       
 
     @Decorators.rehome
     def denest(self, attr='__len__', flatten=False, cast=False):

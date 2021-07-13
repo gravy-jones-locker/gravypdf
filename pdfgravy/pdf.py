@@ -56,6 +56,10 @@ class PDF:
         self._page_h = stats.median([x.h for x in self.pages])
 
     @helper.lazy_property
+    def page_w(self):
+        self._page_w = stats.median([x.w for x in self.pages])
+
+    @helper.lazy_property
     def lines(self):
         self._lines = self.aggregate_elems('lines')
 
