@@ -47,6 +47,7 @@ class Word(Nest, Nested):
 
         new = self[i:i+len(char_str)]
 
+        new.set_bbox()
         #self = Word(*self[:i], *self[i+len(char_str):])
 
         return new
@@ -194,15 +195,18 @@ class Words(Word, Nested):
         Label the bottomost/page lines as end lines.
         """
         p_str = r'(?:page|p)\.{0,1}\s{0,1}\d+'
-        for i, word in enumerate(sorted(self, key=lambda x:x.y0)):
+        s_ls = sorted(self, key=lambda x:x.y0)
+        for i, word in enumerate(s_ls):
             word.p_break = i == 0
             if i > 1:
+                word.marks_p = False
                 word.is_end = False
             elif i == 0:
                 word.is_end = True
+                word.marks_p = bool(re.findall(p_str, word.text.lower()))
             elif i == 1:
-                pw = self[-1]
-                word.is_end = bool(re.findall(p_str, pw.text.lower()))
+                word.marks_p = False
+                word.is_end = s_ls[0].marks_p 
 
     @Nest.Decorators.rehome
     def split_spaces(self):
@@ -274,9 +278,14 @@ class Char(Nested):
         self.fontname = prev_char.fontname
         return self
 
-    def test_alphanum(self):
-        t = self.text
-        return t.isascii() and (t.isdigit() or t.isalpha())
+    def test_alphanum(self, allow_ls=[]):
+        if self.text in allow_ls:
+            return True
+        if not self.text.isascii():
+            return False
+        if self.text.isdigit() or self.text.isalpha():
+            return True
+        return False
 
     @helper.lazy_property
     def font(self):
