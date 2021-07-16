@@ -44,7 +44,10 @@ class PDF:
                 ad_elems = [x.offset(y=off) for x in getattr(p, attr)]
             
             out.extend(ad_elems)
-            off += p.words[0].y1 + 10 if p.words else 0
+            if p.words:
+                off += p.words.get_sorted(lambda x:x.y1, inv=True).y1 + 10
+            else:
+                off += 0
 
         out.sort(key=lambda x: x.y1, reverse=True)
         out.set_bbox()

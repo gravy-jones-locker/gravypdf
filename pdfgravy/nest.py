@@ -428,6 +428,9 @@ class Nested(BasePDF):
             self.y0, self.y1 = self.y0 + y, self.y1 + y
         if x != None:
             self.x0, self.x1 = self.x0 + x, self.x1 + x
+
+        if isinstance(self, Nest):
+            self.apply_nested(Nested.offset, y, x)
         
         return self
 
