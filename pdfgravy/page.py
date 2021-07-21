@@ -155,6 +155,7 @@ class Page:
     @helper.lazy_property
     def words(self):
         ws = Words(*[Word(*x._objs, cast=True) for x in self.text], cast=True)
+        ws.sort(key=lambda x: x.y1, reverse=True)
         self._words = ws.clean()
         self._words = self._words.split_fonts().filter(Word.test_alphanum)
         self._words.lbl_ends()

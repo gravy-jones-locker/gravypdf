@@ -6,11 +6,49 @@ import numpy as np
 
 class Word(Nest, Nested):
 
-    def test_alphanum(self):
+    def rm_double_spaced(self):
+        """
+        Indicate spaced incorrectly.
+        """
+        if '  ' not in self.text or len(self.text.split(' ')) < 4:
+            return self
+        
+        cnt_spaces = len([x for x in self.text.strip().split(' ') if x != ''])
+        cnt_double = len(self.text.strip().split('  '))
+
+        if cnt_double < cnt_spaces - 2:
+            return self  # True if normal ratio of double/single spaces
+
+        i = 0
+        while i < len(self) - 2:
+            char_i  = self[i]
+            char_ii = self[i+1] 
+            if char_i.text != ' ' or char_ii.text != ' ':
+                i += 1
+                continue
+            self = Word(*self[:i], *self[i+1:])
+            i += 2
+
+        return self
+
+    @property
+    def subs(self):
+        """
+        Load a list of subsidiary words separated by spaces.
+        """
+        subs = Words()
+        for word_str in [x for x in self.text.strip().split(' ')]:
+            if word_str in ['', ' '] or not word_str:
+                continue
+            subs.append(self.extract_chars(word_str))
+        subs.set_bbox()
+        return subs
+
+    def test_alphanum(self, allow_ls=[]):
         """
         Test whether at least part of the 'word' is alphanumeric.
         """
-        return any([x.test_alphanum() for x in self])
+        return any([x.test_alphanum(allow_ls) for x in self])
 
     def lookup(self, lookup_strs):
         """
@@ -36,6 +74,7 @@ class Word(Nest, Nested):
         """
         return not all([x.is_wspace() for x in self])
 
+    @Nest.Decorators.set_bbox
     def extract_chars(self, char_str):
         """
         Remove and return the specified characters from the Word instance.
@@ -45,23 +84,18 @@ class Word(Nest, Nested):
         delims = re.findall(r'(cid:\S+)', self.text[:i])
         i -= len(delims) * 6
 
-        new = self[i:i+len(char_str)]
+        return self[i:i+len(char_str)]
 
-        new.set_bbox()
-        #self = Word(*self[:i], *self[i+len(char_str):])
-
-        return new
-
-    def rm_wspace(self):
+    def rm_wspace(self, ad_ls=[]):
         """
         Remove any surrounding whitespace.
         """        
         for st_i, st_char in enumerate(self):
-            if st_char.is_wspace():
+            if st_char.is_wspace() or st_char.text in ad_ls:
                 continue
             
             for end_i, end_char in enumerate(reversed(self[st_i:])):
-                if end_char.is_wspace():
+                if end_char.is_wspace() or st_char.text in ad_ls:
                     continue
 
                 return self[st_i:-end_i] if end_i > 0 else self[st_i:]
@@ -81,6 +115,16 @@ class Word(Nest, Nested):
     def get_text(self):
         return ''.join([x.text for x in self])   
 
+    @Nest.Decorators.rehome
+    def split_word(self, delim, rm_blanks=False):
+        """
+        Split the word given a certain delimiter.
+        """
+        for elem in self.text.split(delim):
+            if rm_blanks and elem in ['', ' ', delim]:
+                continue
+            yield self.extract_chars(elem)
+
     @helper.lazy_property
     def font(self):
         """
@@ -96,6 +140,46 @@ class Word(Nest, Nested):
 
         self._font = count[0][0]
 
+    def is_capitalised(self, thresh=0.6):
+        chars = []
+        for sub in self.subs:
+            if not sub[0].text.isalpha():
+                continue
+            chars.append(sub[0])
+        uppers = len([x for x in chars if x.text.isupper()])
+        if uppers >= len(chars) * thresh:
+            return True
+        if len(chars) == 3 and uppers >= len(chars) - 1:
+            return True
+
+    @property
+    def word_cnt(self):
+        return len([x for x in self.raw_txt.split(' ') if x not in ['', ' ']])
+
+    @property
+    def has_digits(self):
+        return any([x.isdigit() for x in self.text])
+
+    @property
+    def has_alpha(self):
+        return any([x.isalpha() for x in self.text])
+
+    @property
+    def raw_txt(self):
+        return self.text.strip().lower()
+
+    @property
+    def starts_cap(self):
+        return [x for x in self.text if x.isalpha()][0].isupper()
+
+    @property
+    def is_sent(self):
+        return self.starts_cap and self.ends_period
+
+    @property
+    def ends_period(self):
+        return self.raw_txt[-1] == '.'
+
 class Words(Word, Nested):
 
     def clean(self):
@@ -106,6 +190,7 @@ class Words(Word, Nested):
         
         self.apply_nested(Word.rm_wspace)   # Get rid of leading/trailing wspace
         self.apply_nested(Word.detail_anno) # Detail position/text of 'LTAnno'
+        self.apply_nested(Word.rm_double_spaced)
 
         # After changes calculate new positional info of each word
         self.apply_nested(Nest.set_bbox)
