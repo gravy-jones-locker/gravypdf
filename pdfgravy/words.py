@@ -95,7 +95,7 @@ class Word(Nest, Nested):
                 continue
             
             for end_i, end_char in enumerate(reversed(self[st_i:])):
-                if end_char.is_wspace() or st_char.text in ad_ls:
+                if end_char.is_wspace() or end_char.text in ad_ls:
                     continue
 
                 return self[st_i:-end_i] if end_i > 0 else self[st_i:]
@@ -279,7 +279,7 @@ class Words(Word, Nested):
         """
         Label the bottomost/page lines as end lines.
         """
-        p_str = r'(?:page|p)\.{0,1}\s{0,1}\d+'
+        p_str = r'(?:page|p|^)\.{0,1}\s{0,1}\d+'
         s_ls = sorted(self, key=lambda x:x.y0)
         for i, word in enumerate(s_ls):
             word.p_break = i == 0

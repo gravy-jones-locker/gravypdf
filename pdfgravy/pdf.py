@@ -8,6 +8,7 @@ from .nest import Nest
 from . import utils
 from . import helper
 import statistics as stats
+import io
 
 class PDF:
 
@@ -15,16 +16,16 @@ class PDF:
     Top-level class for access to whole doc attributes/methods.
     """
 
-    def __init__(self, fpath, user_settings={}):
+    def __init__(self, f, user_settings={}):
         """
         Load file as pdf using pdfminer's suite of reading tools.
         """
         self.settings = self.Settings(user_settings)
 
         self.pages = []
-        device, interpreter = utils.init_interpreter()
-        with open(fpath, 'rb') as stream:     
-            doc = PDFDocument(PDFParser(stream))       
+        device, interpreter = utils.init_interpreter()            
+        with open(f, 'rb') if isinstance(f, str) else io.BytesIO(f) as stream:  
+            doc = PDFDocument(PDFParser(stream))
             for i, page in enumerate(PDFPage.create_pages(doc)):
                 if self.settings['pages'] and i+1 not in self.settings['pages']:
                     continue
@@ -77,15 +78,16 @@ class PDF:
         """
         lns = self.lines.filter(lambda x:x.orientation == 'h')
         refs = Nest()
-        for i, word in enumerate(self.words):
-            if i == len(self.words) - 1:
+        words = self.words.filter(lambda x: not x.marks_p)
+        for i, word in enumerate(words):
+            if i == len(words) - 1:
                 continue
-            adj = [self.words[i-1], self.words[i+1]]
+            adj = [words[i-1], words[i+1]]
             chk_lone = not any([abs(x.y0-word.y0) < 5 for x in adj if len(x.text.strip().split(' ')) > 2])
             chk_len  = len(word.text.strip().split(' ')) < 6
             if not chk_lone or not chk_len:
                 continue
-            word.is_spaced = self.words[i-1].y0 - word.y1 > 10
+            word.is_spaced = words[i-1].y0 - word.y1 > 10
             word.is_header = word.text.lower() in self.settings["headers"]
             word.is_lined  = any([abs(x.y1-word.y0) < 5 for x in lns]) 
             refs.append(word)
@@ -100,6 +102,10 @@ class PDF:
                 self._headers.append(word)
                 continue
             chk_font = word.font == font
+            if self._headers and not chk_font:
+                prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < self._headers[-1].y0)
+                if word.font in set([x.font for x in prev_words]):
+                    continue
             if not sum([chk_font, word.is_spaced, word.is_lined]) > 1:
                 continue
             self._headers.append(word)
