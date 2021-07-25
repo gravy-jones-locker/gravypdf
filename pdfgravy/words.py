@@ -282,7 +282,7 @@ class Words(Word, Nested):
         p_str = r'(?:page|p|^)\.{0,1}\s{0,1}\d+'
         s_ls = sorted(self, key=lambda x:x.y0)
         for i, word in enumerate(s_ls):
-            word.p_break = i == 0
+            word.p_break = i == len(s_ls) - 1
             if i > 1:
                 word.marks_p = False
                 word.is_end = False

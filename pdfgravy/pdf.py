@@ -9,6 +9,8 @@ from . import utils
 from . import helper
 import statistics as stats
 import io
+import xmltodict as xd
+import json
 
 class PDF:
 
@@ -25,12 +27,35 @@ class PDF:
         self.pages = []
         device, interpreter = utils.init_interpreter()            
         with open(f, 'rb') if isinstance(f, str) else io.BytesIO(f) as stream:  
-            doc = PDFDocument(PDFParser(stream))
-            for i, page in enumerate(PDFPage.create_pages(doc)):
+            self.doc = PDFDocument(PDFParser(stream))
+            for i, page in enumerate(PDFPage.create_pages(self.doc)):
                 if self.settings['pages'] and i+1 not in self.settings['pages']:
                     continue
                 p = Page(page, i+1, device, interpreter)  # +1 = page_no
                 self.pages.append(p)
+
+            self.load_info()
+
+    def load_info(self):
+        """
+        Store bookmark and other helpful information for later use.
+        """
+        self.info  = self.doc.info
+        
+        if 'Dests' in self.doc.catalog:
+            ds = self.doc.catalog['Dests'].resolve()
+            ds = {k: v.resolve() for k, v in ds.items()}
+            self.bmarks = []
+            for b in self.doc.get_outlines():
+                self.bmarks.append((b[1], ds[str(b[2]).strip('/\'')]))
+        else:
+            self.bmarks = []
+
+        if 'Metadata' in self.doc.catalog:
+            raw = self.doc.catalog['Metadata'].resolve().get_data()
+            self.metadata = eval(json.dumps(xd.parse(raw.decode())))
+        else:
+            self.metadata = {}
 
     def aggregate_elems(self, attr, parent=Nest):
         """
@@ -39,16 +64,19 @@ class PDF:
         off = 0
         out = parent()
         for i, p in enumerate(self.pages[::-1]):
+            if p.words and i > 0:
+                off -= p.words.get_sorted(lambda x:x.y0).y0
+            if p.words:
+                ad_off = p.words.get_sorted(lambda x:x.y1, inv=True).y1 + 10
+            else:
+                ad_off = 0
             if i == 0:
                 ad_elems = [x for x in getattr(p, attr)]
             else:
                 ad_elems = [x.offset(y=off) for x in getattr(p, attr)]
             
             out.extend(ad_elems)
-            if p.words:
-                off += p.words.get_sorted(lambda x:x.y1, inv=True).y1 + 10
-            else:
-                off += 0
+            off += ad_off
 
         out.sort(key=lambda x: x.y1, reverse=True)
         out.set_bbox()
@@ -97,7 +125,7 @@ class PDF:
         font   = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
 
         self._headers = Words()
-        for word in refs:
+        for i, word in enumerate(refs):
             if word.is_header:
                 self._headers.append(word)
                 continue
@@ -106,7 +134,7 @@ class PDF:
                 prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < self._headers[-1].y0)
                 if word.font in set([x.font for x in prev_words]):
                     continue
-            if not sum([chk_font, word.is_spaced, word.is_lined]) > 1:
+            if not sum([chk_font, (word.p_break and i != 0), word.is_spaced, word.is_lined]) > 1:
                 continue
             self._headers.append(word)
         self._headers.set_bbox()
