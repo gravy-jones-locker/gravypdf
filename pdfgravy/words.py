@@ -93,12 +93,15 @@ class Word(Nest, Nested):
         for st_i, st_char in enumerate(self):
             if st_char.is_wspace() or st_char.text in ad_ls:
                 continue
+
+            self.wspace_delim = str(self[:st_i].text.strip())
             
             for end_i, end_char in enumerate(reversed(self[st_i:])):
                 if end_char.is_wspace() or end_char.text in ad_ls:
                     continue
 
                 return self[st_i:-end_i] if end_i > 0 else self[st_i:]
+        return self
 
     def detail_anno(self):
         """
@@ -347,11 +350,17 @@ class Header(Words):
 
 class Char(Nested):
 
+    def from_str(self, str_val):
+        """
+        Load from string.
+        """
+        self.text = str_val
+
     def is_wspace(self):
         """
         Return True if the character is a whitespace/newline character.
         """
-        return self.text.isspace() or self.text == '\n' or self.cvttype == 'LTAnno'
+        return self.text.isspace() or self.text == '\n'
 
     def set_details(self, prev_char, next_char):
         """
