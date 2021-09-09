@@ -3,16 +3,16 @@ from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfpage import PDFPage
 from .settings import Settings
 from .page import Page
-from .words import Words
+from .words import Word, Words
 from .nest import Nest
 from . import utils
 from . import helper
 import statistics as stats
 import io
-import xmltodict as xd
 import json
+from lxml import html
 
-class PDF:
+class Pdf:
 
     """
     Top-level class for access to whole doc attributes/methods.
@@ -53,9 +53,9 @@ class PDF:
 
         if 'Metadata' in self.doc.catalog:
             raw = self.doc.catalog['Metadata'].resolve().get_data()
-            self.metadata = eval(json.dumps(xd.parse(raw.decode())))
+            self.metadata = html.fromstring(raw.decode())
         else:
-            self.metadata = {}
+            self.metadata = ''
 
     def aggregate_elems(self, attr, parent=Nest):
         """
@@ -100,46 +100,6 @@ class PDF:
         self._words = self.aggregate_elems('words', Words)
 
     @helper.lazy_property
-    def headers(self):
-        """
-        Find obvious top-level headers using any keywords passed.
-        """
-        lns = self.lines.filter(lambda x:x.orientation == 'h')
-        refs = Nest()
-        words = self.words.filter(lambda x: not x.marks_p)
-        for i, word in enumerate(words):
-            if i == len(words) - 1:
-                continue
-            adj = [words[i-1], words[i+1]]
-            chk_lone = not any([abs(x.y0-word.y0) < 5 for x in adj if len(x.text.strip().split(' ')) > 2])
-            chk_len  = len(word.text.strip().split(' ')) < 6
-            if not chk_lone or not chk_len:
-                continue
-            word.is_spaced = words[i-1].y0 - word.y1 > 10
-            word.is_header = word.text.lower() in self.settings["headers"]
-            word.is_lined  = any([abs(x.y1-word.y0) < 5 for x in lns]) 
-            refs.append(word)
-
-        f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:])    
-        f_refs = f_refs.filter(lambda x: any([y.is_header for y in x]))
-        font   = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
-
-        self._headers = Words()
-        for i, word in enumerate(refs):
-            if word.is_header:
-                self._headers.append(word)
-                continue
-            chk_font = word.font == font
-            if self._headers and not chk_font:
-                prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < self._headers[-1].y0)
-                if word.font in set([x.font for x in prev_words]):
-                    continue
-            if not sum([chk_font, (word.p_break and i != 0), word.is_spaced, word.is_lined]) > 1:
-                continue
-            self._headers.append(word)
-        self._headers.set_bbox()
-
-    @helper.lazy_property
     def fonts(self):
         """
         Get stats about fonts from each page then analyse for types.
@@ -174,6 +134,60 @@ class PDF:
 
         self._fonts = fonts
 
+    def get_headed_sections(self, ref_headers: list):
+        """
+        Use the reference headers passed to split the pdf into headed sections.
+        :param ref_headers: a list of reference values from which to infer
+        header spacing and formatting.
+        :return: a list of PdfExtract object corresponding to the sections
+        found in the pdf.
+        """
+        lns = self.lines.filter(lambda x:x.orientation == 'h')
+        refs = Nest()
+        words = self.words.filter(lambda x: not x.marks_p)
+        for i, word in enumerate(words):
+            if i == len(words) - 1:
+                continue
+            adj = [words[i-1], words[i+1]]
+            chk_lone = not any([abs(x.y0-word.y0) < 5 for x in adj if len(x.text.strip().split(' ')) > 2])
+            chk_len  = len(word.text.strip().split(' ')) < 6
+            if not chk_lone or not chk_len:
+                continue
+            word.is_spaced = words[i-1].y0 - word.y1 > 10
+            word.is_header = word.text.lower() in ref_headers
+            word.is_lined  = any([abs(x.y1-word.y0) < 5 for x in lns]) 
+            refs.append(word)
+
+        f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:])    
+        f_refs = f_refs.filter(lambda x: any([y.is_header for y in x]))
+        font   = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
+
+        headers = []
+        for i, word in enumerate(refs):
+            if word.is_header:
+                headers.append(word)
+                continue
+            chk_font = word.font == font
+            if headers and not chk_font:
+                prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < headers[-1].y0)
+                if word.font in set([x.font for x in prev_words]):
+                    continue
+            if not sum([chk_font, (word.p_break and i != 0), word.is_spaced, word.is_lined]) > 1:
+                continue
+            headers.append(word)
+
+        out = []
+        for i, header in enumerate(headers):
+            if i == len(headers) - 1:
+                y0 = 0
+            else:
+                y0 = headers[i+1].y1
+            extract = PdfExtract(self.pdf, header.y0, y0, word)
+            if y0 != 0:
+                extract.reset_y_coordinates()
+            out.append(PdfExtract())
+        return out
+
     class Settings(Settings):
 
         defaults = {
@@ -181,3 +195,35 @@ class PDF:
             "pages": None,
             "headers": None
         }
+
+class PdfExtract:
+
+    def __init__(self, pdf: Pdf, y1: float, y0: float, header: Word=None) -> 
+                                                                        None:
+        """
+        Initialise the extract from the elements that fall within its area
+        and important info.
+        :param pdf: the Pdf object that the extract comes from.
+        :param y1: the exact y1 (top) coordinate of the extract.
+        :param y0: the exact y0 (bottom) coordinate of the extract.
+        :param header: the header at the top of the 
+        """
+        self.pdf = pdf
+        self.words = pdf.words.filter(lambda x: x.y1 < y1 and x.y0 > y0)
+        self.lines = pdf.lines.filter(lambda x: x.y1 < y1 and x.y0 > y0)
+        self.y1 = y1
+        self.y0 = y0
+        if self.header != None:
+            self.header = header
+        else:
+            self.header = Word()  # Empty placeholder header
+
+    def reset_y_coordinates(self) -> None:
+        """
+        Reset the y values of the constituent words, lines etc. to start from 0.
+        """
+        nests = [self.words, self.lines]
+        for nest in nests:
+            nest.apply_nested(lambda x: x.offset(y=-self.y0))
+            nest.set_bbox()
+        self.header.offset(y=-self.y0)

@@ -4,7 +4,7 @@ import pdfgravy
 class ConstructorClass:
     @classmethod
     def setUpClass(cls):
-        cls.pdf  = pdfgravy.pdf.PDF(cls.PATH)
+        cls.pdf  = pdfgravy.pdf.Pdf(cls.PATH)
         cls.page = cls.pdf.pages[0]
         
         _ = cls.page.objects  # Necessary to load 'lazy' _objects property

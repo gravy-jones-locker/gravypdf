@@ -1,1 +1,1 @@
-from pdfgravy.pdf import PDF
+from pdfgravy.pdf import Pdf, PdfExtract
