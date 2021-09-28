@@ -109,7 +109,7 @@ class Nest(MutableSequence, BasePDF):
         Combine stored attrs and modifications in kwargs for new nest.
         """
         out = type(self)()
-        for attr in ['parent', 'i', '_ls', 'metadata']:
+        for attr in ['parent', 'i', '_ls', 'metadata', 'section']:  # TODO hacky
             v = kwargs[attr] if attr in kwargs else getattr(self, attr, None)
             setattr(out, attr, v)
         return out
@@ -411,8 +411,6 @@ class Nest(MutableSequence, BasePDF):
 
 class Nested(BasePDF):
 
-    default_metadata = {}
-
     class Decorators:
 
         @classmethod
@@ -422,7 +420,7 @@ class Nested(BasePDF):
                 return cls
             return inner
 
-    def __init__(self, elem):
+    def __init__(self, elem, **kwargs):
         """
         Store every dictionary value as an attribute of the class instance.
         """
@@ -430,9 +428,6 @@ class Nested(BasePDF):
 
         if type(elem).__name__.startswith('LT'):
             setattr(self, 'cvttype', type(elem).__name__)
-
-        if not kwargs.get('metadata'):
-            kwargs["metadata"] = self.default_metadata
 
     def offset(self, y=None, x=None):
         """

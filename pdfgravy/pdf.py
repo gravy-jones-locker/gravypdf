@@ -182,10 +182,10 @@ class Pdf:
                 y0 = 0
             else:
                 y0 = headers[i+1].y1
-            extract = PdfExtract(self.pdf, header.y0, y0, word)
-            if y0 != 0:
-                extract.reset_y_coordinates()
-            out.append(PdfExtract())
+            extract = PdfExtract(self, header.y0, y0, header)
+            out.append(extract)
+        for extract in out:
+            extract.reset_y_coordinates()
         return out
 
     class Settings(Settings):
@@ -198,8 +198,8 @@ class Pdf:
 
 class PdfExtract:
 
-    def __init__(self, pdf: Pdf, y1: float, y0: float, header: Word=None) -> 
-                                                                        None:
+    def __init__(self, pdf: Pdf, y1: float, y0: float, 
+                                                    header: Word=None) -> None:
         """
         Initialise the extract from the elements that fall within its area
         and important info.
@@ -213,7 +213,7 @@ class PdfExtract:
         self.lines = pdf.lines.filter(lambda x: x.y1 < y1 and x.y0 > y0)
         self.y1 = y1
         self.y0 = y0
-        if self.header != None:
+        if header != None:
             self.header = header
         else:
             self.header = Word()  # Empty placeholder header

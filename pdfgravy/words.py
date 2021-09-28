@@ -86,6 +86,7 @@ class Word(Nest, Nested):
 
         return self[i:i+len(char_str)]
 
+    @Nest.Decorators.set_bbox
     def rm_wspace(self, ad_ls=[]):
         """
         Remove any surrounding whitespace.
