@@ -57,6 +57,7 @@ class Nest(MutableSequence, BasePDF):
                 out = type(cls)()
                 for elem in func(cls, *args, **kwargs):
                     out.addtwigs(elem)
+                out.copy_meta(cls)
                 out.set_bbox()
                 return out
             return inner
@@ -68,14 +69,13 @@ class Nest(MutableSequence, BasePDF):
         self._ls = []
         for i, elem in enumerate(elems):
             if kwargs.get('cast'):
-            
                 if helper.chk_sys_it(elem):
                     elem = type(self)(*elem, **kwargs)  
                 elif not isinstance(elem, self.nested):
                     elem = self.nested(elem)
-
             self.addtwigs(elem)
-        
+        for attr in getattr(self, 'meta_attrs', []):
+            setattr(self, attr, None)
         self.set_bbox()
 
     ####  apply builtins to inner (_ls) list of nested items  ####
@@ -109,10 +109,19 @@ class Nest(MutableSequence, BasePDF):
         Combine stored attrs and modifications in kwargs for new nest.
         """
         out = type(self)()
-        for attr in ['parent', 'i', '_ls', 'metadata', 'section']:  # TODO hacky
+        copy_ls = ['parent', 'i', '_ls'] + getattr(self, 'meta_attrs', [])
+        for attr in copy_ls:
             v = kwargs[attr] if attr in kwargs else getattr(self, attr, None)
             setattr(out, attr, v)
         return out
+
+    def copy_meta(self, parent):
+        """
+        Copy meta-attributes across from parent to child.
+        """
+        for attr in getattr(self, 'meta_attrs', []):
+            var = getattr(parent, attr)
+            setattr(self, attr, var)
 
     def addtwigs(self, *elems):
         """
@@ -257,7 +266,6 @@ class Nest(MutableSequence, BasePDF):
         for elem in self:
             if fn and not fn(elem, *args, **kwargs):
                 continue
-        
             yield elem
 
     @Decorators.rehome
@@ -351,7 +359,6 @@ class Nest(MutableSequence, BasePDF):
         Apply filter and return *two* nests: true results, false results.
         """
         out_i  = self.filter(fn, *args, **filters)
-        
         out_ii = self.copy(_ls=[x for x in self if x not in out_i])
         if out_ii:
             out_ii.set_bbox()
@@ -402,6 +409,7 @@ class Nest(MutableSequence, BasePDF):
         """
         for i, obj in enumerate(self):
             self[i] = fn(obj, *args, **kwargs)
+        return self
 
     def get_sorted(self, fn, i=0, inv=False):
         """
@@ -409,7 +417,16 @@ class Nest(MutableSequence, BasePDF):
         """
         return sorted(self, key=fn, reverse=inv)[i]
 
+    @Decorators.rehome
+    def reset_values(self, values):
+        """
+        Inserts the new values into the list using standard rehome method.
+        """
+        yield from values    
+
 class Nested(BasePDF):
+
+    meta_attrs = []
 
     class Decorators:
 
