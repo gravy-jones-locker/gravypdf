@@ -120,21 +120,30 @@ class Word(Nest, Nested):
         return ''.join([x.text for x in self])   
 
     @Nest.Decorators.rehome
-    def split_word(self, delim, rm_blanks=False):
+    def split_word(self, delim, rm_blanks=False, ignore_pars=False):
         """
         Split the word given a certain delimiter.
         """
-        for elem in self.text.split(delim):
-            if rm_blanks and elem in ['', ' ', delim]:
-                continue
-            yield self.extract_chars(elem)
+        i = 0
+        parts = self.text.split(delim)
+        while i < len(parts):
+            part = parts[i]
+            if ignore_pars and '(' in part and ')' not in part:
+                for j, ad_part in enumerate(parts[i+1:], start=1):
+                    if ')' in ad_part:
+                        part = part + delim + delim.join(parts[i+1:i+j+1])
+                        i += j
+                        break
+            if not rm_blanks or part not in [' ', delim, '']:
+                yield self.extract_chars(part)
+            i += 1
 
     @helper.lazy_property
     def font(self):
         """
         Find and return the most common font/size in the word.
         """        
-        fonts = [f'{x.caps}{x.font}' for x in self]
+        fonts = [f'{x.caps}{x.font}' for x in self if hasattr(x, 'fontname')]
         sel = set(fonts)
         if len(sel) == 1:
             self._font = str(sel).strip('{}\'')
@@ -229,15 +238,13 @@ class Words(Word, Nested):
                 yield word
                 continue
 
-            rem = word
-            for i in font_changes[1:]:
-                sel, rem = rem.split(lambda x: x.i <= i-1)
-                if sel:
-                    sel.set_bbox()
-                    yield sel
-            if rem:
-                rem.set_bbox()
-                yield rem
+            for i, split_pos in enumerate(font_changes):
+                if i == len(font_changes) - 1:
+                    out = word.extract_chars(word.text[split_pos:])
+                else:
+                    out = word.extract_chars(word.text[split_pos:font_changes[i+1]])
+                if out:
+                    yield out
 
     def score_incidence(self, lookup_strs, consecutive=False):
         """

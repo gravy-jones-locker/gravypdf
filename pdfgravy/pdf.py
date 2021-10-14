@@ -182,8 +182,11 @@ class Pdf:
                 y0 = 0
             else:
                 y0 = headers[i+1].y1
+            if i == 0 and self.words.filter(lambda x: x.y0 > y0):
+                out.append(PdfExtract(self, self.words.y1 + 10, header.y1, self.words[0]))
             extract = PdfExtract(self, header.y0, y0, header)
-            out.append(extract)
+            if len(extract.words) > 0:
+                out.append(extract)
         for extract in out:
             extract.reset_y_coordinates()
         return out
@@ -208,9 +211,10 @@ class PdfExtract:
         :param y0: the exact y0 (bottom) coordinate of the extract.
         :param header: the header at the top of the 
         """
-        self.pdf = pdf
-        self.words = pdf.words.filter(lambda x: x.y1 < y1 and x.y0 > y0)
-        self.lines = pdf.lines.filter(lambda x: x.y1 < y1 and x.y0 > y0)
+        self.page_w, self.page_h = pdf.page_w, pdf.page_h
+        self.fonts = pdf.fonts
+        self.words = pdf.words.filter(lambda x: x.y1 < y1 and x.y0 >= y0)
+        self.lines = pdf.lines.filter(lambda x: x.y1 < y1 and x.y0 >= y0)
         self.y1 = y1
         self.y0 = y0
         if header != None:
@@ -226,4 +230,5 @@ class PdfExtract:
         for nest in nests:
             nest.apply_nested(lambda x: x.offset(y=-self.y0))
             nest.set_bbox()
-        self.header.offset(y=-self.y0)
+        if self.header not in self.words:
+            self.header.offset(y=-self.y0)

@@ -108,8 +108,8 @@ class Nest(MutableSequence, BasePDF):
         """
         Combine stored attrs and modifications in kwargs for new nest.
         """
-        out = type(self)()
-        copy_ls = ['parent', 'i', '_ls'] + getattr(self, 'meta_attrs', [])
+        out = type(self)(*kwargs.pop('_ls', self._ls))
+        copy_ls = ['parent', 'i'] + getattr(self, 'meta_attrs', [])
         for attr in copy_ls:
             v = kwargs[attr] if attr in kwargs else getattr(self, attr, None)
             setattr(out, attr, v)
