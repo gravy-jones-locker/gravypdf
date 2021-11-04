@@ -111,7 +111,10 @@ class Page:
                 continue
             fonts[font] = {}
             fonts[font]["count"] = len([x for y in ws for x in y])
-            fonts[font]["size"]  = int(font.split('_')[1])
+            try:
+                fonts[font]["size"]  = int(font.split('_')[1])
+            except:
+                fonts[font]["size"] = 4  # TODO improve
             fonts[font]["bold"] = 'Bold' in font
             fonts[font]["italic"] = 'Italic' in font
             fonts[font]["top_only"] = ws.y0 > 500
@@ -139,6 +142,11 @@ class Page:
         
         self._lines = Nest(*lines, *rects_v, *rects_h)
         self._lines.sort(key=lambda x:x.y0)
+        for i, ln in enumerate(self._lines):
+            if not hasattr(ln, 'x0'):
+                self._lines[i].x0 = 0
+            if not hasattr(ln, 'y0'):
+                self._lines[i].y0 = 0
 
     @helper.lazy_property
     def chars(self):

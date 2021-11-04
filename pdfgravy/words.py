@@ -6,6 +6,9 @@ import numpy as np
 
 class Word(Nest, Nested):
 
+    def __str__(self):
+        return self.text
+
     def rm_double_spaced(self):
         """
         Indicate spaced incorrectly.

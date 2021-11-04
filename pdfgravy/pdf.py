@@ -44,10 +44,13 @@ class Pdf:
         
         if 'Dests' in self.doc.catalog:
             ds = self.doc.catalog['Dests'].resolve()
-            ds = {k: v.resolve() for k, v in ds.items()}
-            self.bmarks = []
-            for b in self.doc.get_outlines():
-                self.bmarks.append((b[1], ds[str(b[2]).strip('/\'')]))
+            try:
+                ds = {k: v.resolve() for k, v in ds.items()}
+                self.bmarks = []
+                for b in self.doc.get_outlines():
+                    self.bmarks.append((b[1], ds[str(b[2]).strip('/\'')]))
+            except:
+                self.bmarks = []
         else:
             self.bmarks = []
 
@@ -155,24 +158,28 @@ class Pdf:
                 continue
             word.is_spaced = words[i-1].y0 - word.y1 > 10
             word.is_header = word.text.lower() in ref_headers
-            word.is_lined  = any([abs(x.y1-word.y0) < 5 for x in lns]) 
+            word.is_overlined  = any([0 < x.y1-word.y0 < 5 for x in lns])
+            word.is_underlined = any([-5 < x.y1-word.y0 < 0 for x in lns])
             refs.append(word)
 
         f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:])    
         f_refs = f_refs.filter(lambda x: any([y.is_header for y in x]))
-        font   = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
+        if len(f_refs) == 0:
+            font = ''
+        else:
+            font = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
 
         headers = []
         for i, word in enumerate(refs):
             if word.is_header:
                 headers.append(word)
                 continue
-            chk_font = word.font == font
+            chk_font = word.font == font or self.fonts[word.font]['type'] == 'banner'
             if headers and not chk_font:
                 prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < headers[-1].y0)
                 if word.font in set([x.font for x in prev_words]):
                     continue
-            if not sum([chk_font, (word.p_break and i != 0), word.is_spaced, word.is_lined]) > 1:
+            if not sum([chk_font, (word.p_break and i != 0), (word.is_spaced and not word.is_overlined), (word.is_underlined and not word.is_spaced)]) > 1:
                 continue
             headers.append(word)
 
