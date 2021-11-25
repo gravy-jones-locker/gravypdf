@@ -43,7 +43,9 @@ class Nest(MutableSequence, BasePDF):
             Resets coordinates of nest based on (new) elements.
             """
             def inner(cls, *args, **kwargs):
-                cls = func(cls, *args, **kwargs)
+                out = func(cls, *args, **kwargs)
+                if out is not None:
+                    cls = out
                 cls.set_bbox()
                 return cls            
             return inner

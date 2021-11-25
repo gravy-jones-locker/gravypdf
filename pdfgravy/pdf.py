@@ -196,7 +196,7 @@ class Pdf:
                 out.append(extract)
         for extract in out:
             extract.reset_y_coordinates()
-        return out
+        return [x for x in out if len(x.words) > 0]
 
     class Settings(Settings):
 

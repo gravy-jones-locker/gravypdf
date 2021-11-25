@@ -1,3 +1,4 @@
+from pdfminer.layout import LTAnno
 from .nest import Nest, Nested
 import re
 import statistics as stats
@@ -33,6 +34,16 @@ class Word(Nest, Nested):
             i += 2
 
         return self
+
+    @Nest.Decorators.set_bbox
+    def _add_chars(self, *ad_chars, prefix=None):
+        """
+        Add characters to the end of a Word object with optional prefix.
+        """
+        if prefix is not None:
+            ad_chars = [*[Char(LTAnno(x)) for x in prefix], *ad_chars]
+        self.extend(ad_chars)
+        self.detail_anno()
 
     @property
     def subs(self):
@@ -114,8 +125,8 @@ class Word(Nest, Nested):
         for i, char in enumerate(self):
             if char.cvttype != 'LTAnno':
                 continue
-
-            prev_char, next_char = self[i-1], self[i+1]
+            prev_char = self[i-1]
+            next_char = self[i:].filter(lambda x: x.cvttype != 'LTAnno')
             char.set_details(prev_char, next_char)
         return self
     
