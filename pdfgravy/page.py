@@ -31,6 +31,11 @@ class Page:
                                                 'LTTextLineHorizontal',
                                                 'LTChar'
                                                 ])
+        self.chars = self.get_chars()
+        self.text  = self.get_text()
+        self.words = self.get_words()
+        self.lines = self.get_lines()
+        self.boxes = self.get_boxes()
 
     def extract_tables(self, user_settings={}):
         """
@@ -127,8 +132,7 @@ class Page:
 
     ####  objects from pdf layer evaluated then stored on-demand/lazily  ####
 
-    @helper.lazy_property
-    def lines(self):
+    def get_lines(self):
         lines = self.objects.filter_attrs(cvttype='LTLine')
         rects = self.objects.filter_attrs(cvttype='LTRect')
         
@@ -140,31 +144,28 @@ class Page:
         rects_v.apply_nested(Nested.squash, 'x')
         rects_h.apply_nested(Nested.squash, 'y')
         
-        self._lines = Nest(*lines, *rects_v, *rects_h)
-        self._lines.sort(key=lambda x:x.y0)
-        for i, ln in enumerate(self._lines):
+        lines = Nest(*lines, *rects_v, *rects_h)
+        lines.sort(key=lambda x:x.y0)
+        for i, ln in enumerate(lines):
             if not hasattr(ln, 'x0'):
-                self._lines[i].x0 = 0
+                lines[i].x0 = 0
             if not hasattr(ln, 'y0'):
-                self._lines[i].y0 = 0
+                lines[i].y0 = 0
+        return lines
 
-    @helper.lazy_property
-    def chars(self):
-        self._chars = self.objects.filter_attrs(cvttype='LTChar')
+    def get_chars(self):
+        return self.objects.filter_attrs(cvttype='LTChar')
 
-    @helper.lazy_property
-    def text(self):
-        self._text = self.objects.filter_attrs(cvttype='LTTextLineHorizontal')
+    def get_text(self):
+        return self.objects.filter_attrs(cvttype='LTTextLineHorizontal')
 
-    @helper.lazy_property
-    def boxes(self):
-        self._boxes = self.objects.filter_attrs(cvttype='LTTextBoxHorizontal')
+    def get_boxes(self):
+        return self.objects.filter_attrs(cvttype='LTTextBoxHorizontal')
 
-    @helper.lazy_property
-    def words(self):
+    def get_words(self):
         ws = Words(*[Word(*x._objs, cast=True) for x in self.text], cast=True)
         ws.sort(key=lambda x: x.y1, reverse=True)
-        self._words = ws.clean()
-        self._words = self._words.split_fonts().filter(Word.test_alphanum)
-        self._words.lbl_ends()
-        self._words = self._words.filter(lambda x: not x.marks_p)
+        words = ws.clean()
+        words = words.split_fonts().filter(Word.test_alphanum)
+        words.lbl_ends()
+        return words.filter(lambda x: not x.marks_p)

@@ -27,38 +27,38 @@ class Pdf:
         self.pages = []
         device, interpreter = utils.init_interpreter()            
         with open(f, 'rb') if isinstance(f, str) else io.BytesIO(f) as stream:  
-            self.doc = PDFDocument(PDFParser(stream))
-            for i, page in enumerate(PDFPage.create_pages(self.doc)):
+            doc = PDFDocument(PDFParser(stream))
+            for i, page in enumerate(PDFPage.create_pages(doc)):
                 if self.settings['pages'] and i+1 not in self.settings['pages']:
                     continue
                 p = Page(page, i+1, device, interpreter)  # +1 = page_no
                 self.pages.append(p)
 
-            self.load_info()
+            self.load_info(doc)
 
-    def load_info(self):
+    def load_info(self, doc):
         """
         Store bookmark and other helpful information for later use.
         """
-        self.info  = self.doc.info
+        self.info  = doc.info
         
-        if 'Dests' in self.doc.catalog:
-            ds = self.doc.catalog['Dests'].resolve()
+        if 'Dests' in doc.catalog:
+            ds = doc.catalog['Dests'].resolve()
             try:
                 ds = {k: v.resolve() for k, v in ds.items()}
                 self.bmarks = []
-                for b in self.doc.get_outlines():
+                for b in doc.get_outlines():
                     self.bmarks.append((b[1], ds[str(b[2]).strip('/\'')]))
             except:
                 self.bmarks = []
         else:
             self.bmarks = []
 
-        if 'Metadata' in self.doc.catalog:
-            raw = self.doc.catalog['Metadata'].resolve().get_data()
-            self.metadata = html.fromstring(raw.decode())
+        if 'Metadata' in doc.catalog:
+            raw = doc.catalog['Metadata'].resolve().get_data()
+            self.metadata_bytes = raw.decode()
         else:
-            self.metadata = ''
+            self.metadata_bytes = b''
 
     def aggregate_elems(self, attr, parent=Nest):
         """
