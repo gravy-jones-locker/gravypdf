@@ -126,7 +126,11 @@ class Word(Nest, Nested):
             if char.cvttype != 'LTAnno':
                 continue
             prev_char = self[i-1]
-            next_char = self[i:].filter(lambda x: x.cvttype != 'LTAnno')
+            next_chars = self[i:].filter(lambda x: x.cvttype != 'LTAnno')
+            if not next_chars:
+                next_char = prev_char
+            else:
+                next_char = next_chars[0]
             char.set_details(prev_char, next_char)
         return self
     

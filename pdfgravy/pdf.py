@@ -156,13 +156,13 @@ class Pdf:
             chk_len  = len(word.text.strip().split(' ')) < 6
             if not chk_lone or not chk_len:
                 continue
-            word.is_spaced = words[i-1].y0 - word.y1 > 10
+            word.is_spaced = words[i-1].y0 - word.y1 > 10 and (words[i+1].x0 - word.x1 > 15 or word.y0 - words[i+1].y1 > 0)
             word.is_header = word.text.lower() in ref_headers
-            word.is_overlined  = any([0 < x.y1-word.y0 < 5 for x in lns])
-            word.is_underlined = any([-5 < x.y1-word.y0 < 0 for x in lns])
+            word.is_overlined  = any([0 < x.y1-word.y1 < 5 for x in lns])
+            word.is_underlined = any([-5 < x.y1-word.y0 < 5 for x in lns])
             refs.append(word)
 
-        f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:])    
+        f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:] and x.is_underlined == y.is_underlined)    
         f_refs = f_refs.filter(lambda x: any([y.is_header for y in x]))
         if len(f_refs) == 0:
             font = ''
@@ -175,6 +175,7 @@ class Pdf:
                 headers.append(word)
                 continue
             chk_font = word.font == font or self.fonts[word.font]['type'] == 'banner'
+            chk_font = chk_font or ('Bold' in font and font[1:-2] == word.font[1:-2] and abs(self.fonts[word.font]["size"] - self.fonts[font]["size"]) < 2)
             if headers and not chk_font:
                 prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < headers[-1].y0)
                 if word.font in set([x.font for x in prev_words]):
