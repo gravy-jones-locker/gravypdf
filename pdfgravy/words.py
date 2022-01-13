@@ -1,3 +1,4 @@
+from itertools import permutations
 from pdfminer.layout import LTAnno
 from .nest import Nest, Nested
 import re
@@ -137,7 +138,6 @@ class Word(Nest, Nested):
     def get_text(self):
         return ''.join([x.text for x in self])   
 
-    @Nest.Decorators.rehome
     def split_word(self, delim, rm_blanks=False, ignore_pars=False):
         """
         Split the word given a certain delimiter.
@@ -210,6 +210,13 @@ class Word(Nest, Nested):
     @property
     def ends_period(self):
         return self.raw_txt[-1] == '.'
+    
+    @property
+    def firstchar(self):
+        for char in self:
+            if char.text.isalnum():
+                return char
+        return self[0]  # Copout in case none was found
 
 class Words(Word, Nested):
 
@@ -336,6 +343,11 @@ class Words(Word, Nested):
                     new = word.extract_chars(part)
                     new.set_bbox()
                     yield new
+    
+    def is_raligned(self):
+        diff_l = sum([abs(x.x0-y.x0) for (x, y) in permutations(self, r=2)])
+        diff_r = sum([abs(x.x1-y.x1) for (x, y) in permutations(self, r=2)])
+        return diff_l > diff_r
 
 class Header(Words):
 

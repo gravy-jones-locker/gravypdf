@@ -65,7 +65,6 @@ class Pdf:
         Aggregate the elements in the various pages and offset as appropriate.
         """
         off = 0
-        out = parent()
         for i, p in enumerate(self.pages[::-1]):
             if p.words and i > 0:
                 off -= p.words.get_sorted(lambda x:x.y0).y0
@@ -77,11 +76,12 @@ class Pdf:
                 ad_elems = [x for x in getattr(p, attr)]
             else:
                 ad_elems = [x.offset(y=off) for x in getattr(p, attr)]
-            
-            out.extend(ad_elems)
+            if i == 0:
+                out = parent(*ad_elems)
+            else:
+                out = parent(*ad_elems, *out)
             off += ad_off
 
-        out.sort(key=lambda x: x.y1, reverse=True)
         out.set_bbox()
         
         return out
@@ -158,11 +158,11 @@ class Pdf:
                 continue
             word.is_spaced = words[i-1].y0 - word.y1 > 10 and (words[i+1].x0 - word.x1 > 15 or word.y0 - words[i+1].y1 > 0)
             word.is_header = word.text.lower() in ref_headers
-            word.is_overlined  = any([0 < x.y1-word.y1 < 5 for x in lns])
+            word.is_overlined  = any([0 < x.y1-word.y1 < 10 for x in lns])
             word.is_underlined = any([-5 < x.y1-word.y0 < 5 for x in lns])
             refs.append(word)
 
-        f_refs = refs.cluster(lambda x, y: x.font[1:] == y.font[1:] and x.is_underlined == y.is_underlined)    
+        f_refs = refs.cluster(lambda x, y: x.font == y.font and x.is_underlined == y.is_underlined)    
         f_refs = f_refs.filter(lambda x: any([y.is_header for y in x]))
         if len(f_refs) == 0:
             font = ''
@@ -190,13 +190,15 @@ class Pdf:
                 y0 = 0
             else:
                 y0 = headers[i+1].y1
-            if i == 0 and self.words.filter(lambda x: x.y0 > y0):
-                out.append(PdfExtract(self, self.words.y1 + 10, header.y1, self.words[0]))
-            extract = PdfExtract(self, header.y0, y0, header)
+            if i == 0:
+                ws = self.words.filter(lambda x: x.y0 > header.y1)
+                if ws:
+                    out.append(self.extract(self, self.words.y1 + 10, header.y1, self.words[0]))
+            extract = self.extract(self, header.y0, y0, header)
             if len(extract.words) > 0:
                 out.append(extract)
-        for extract in out:
-            extract.reset_y_coordinates()
+        #for extract in out:
+            #extract.reset_y_coordinates()
         return [x for x in out if len(x.words) > 0]
 
     class Settings(Settings):
@@ -240,3 +242,5 @@ class PdfExtract:
             nest.set_bbox()
         if self.header not in self.words:
             self.header.offset(y=-self.y0)
+
+Pdf.extract = PdfExtract

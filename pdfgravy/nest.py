@@ -79,6 +79,15 @@ class Nest(MutableSequence, BasePDF):
         for attr in getattr(self, 'meta_attrs', []):
             setattr(self, attr, None)
         self.set_bbox()
+    
+    @classmethod
+    def _from_sibling(self, sibling):
+        """
+        Cast between sibling objects.
+        """
+        obj = type(self)(*sibling)
+        obj.copy_meta(sibling)
+        return obj
 
     ####  apply builtins to inner (_ls) list of nested items  ####
 
@@ -131,6 +140,7 @@ class Nest(MutableSequence, BasePDF):
         """
         for elem in elems:
             elem.i = len(self)
+            elem.parent = self
             self._ls.append(elem)
 
     def reset_idx(self):
@@ -176,17 +186,30 @@ class Nest(MutableSequence, BasePDF):
         """
         Sort with the tolerance given.
         """
-        ref = [fn(x) for x in self]
+        ref = [(x, fn(x)) for x in self]
         for i in range(len(ref)):
             already_sorted = True
             for j in range(len(ref) - i - 1):
-                if ref[j] < (ref[j+1] - tol):
+                if ref[j+1][1] < (ref[j][1] - tol):
                     ref[j+1], ref[j] = ref[j], ref[j+1]
-                    self[j+1], self[j] = self[j], self[j+1]
                     already_sorted = False
             if already_sorted:
                 break
-        return self[::-1] if not kwargs.get('reverse') else self      
+        if kwargs.get('reverse'):
+            ref = ref[::-1]
+        return [x[0] for x in ref]
+    
+    @Decorators.rehome
+    def split_y(self, split_ys):
+        """
+        Split the nest along the y values given.
+        """
+        for val in split_ys:
+            part, self = self.split(lambda x: x.y0 > val)
+            if part:
+                yield part
+        if self:
+            yield self
 
     @Decorators.rehome
     def cluster(self, fn, inv=False, dedupe=False, stretchy=False):
@@ -223,23 +246,37 @@ class Nest(MutableSequence, BasePDF):
         """
         for sub_elem in [x for y in self for x in y]:
             yield sub_elem        
+    
+    @Decorators.rehome
+    def get_intervals(self, fn):
+        """
+        Return the intervals between the points where fn evaluates to True.
+        """
+        offset = 0
+        for i, elem in enumerate(self):
+            if fn(elem):
+                part = self[offset:i] 
+                if part:
+                    yield part
+                offset = i + 1
+        rem =self[offset:i+1]
+        if rem:
+            yield rem
 
     @Decorators.rehome
     def neg_cluster(self, y_gap=None, x_gap=None, fn=None):
         """
         Cluster items which do not have the specified gap between them.
+        # TODO write up how this works! actually q. complicated..
         """
         def chkGap(x, y):
             chk_y = abs(x.y1-y.y0) < y_gap or x.y1 > y.y0 if y_gap else True
-            chk_x = abs(x.x0-y.x0) < x_gap if x_gap else True
+            chk_x = abs(x.x0-y.x1) < x_gap or x.x0 < y.x1 if x_gap else True
             return chk_y and chk_x
-
-        self.sort(key=lambda x:x.x0)
-        self = self.flexi_sort(lambda x:x.y1, tol=5, reverse=True)
 
         out = []
         for i, elem in enumerate(self):
-            if i == 0 or (not chkGap(elem, out[-1]) and fn(elem)):
+            if i == 0 or (not chkGap(elem, out[-1]) and (fn is None or fn(elem))):
                 out.append(type(self)(elem))
                 continue
             out[-1].append(elem)
@@ -438,7 +475,7 @@ class Nested(BasePDF):
                 func(cls *args, **kwargs)
                 return cls
             return inner
-
+    
     def __init__(self, elem, **kwargs):
         """
         Store every dictionary value as an attribute of the class instance.
