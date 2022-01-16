@@ -194,7 +194,10 @@ class Pdf:
                 ws = self.words.filter(lambda x: x.y0 > header.y1)
                 if ws:
                     out.append(self.extract(self, self.words.y1 + 10, header.y1, self.words[0]))
-            extract = self.extract(self, header.y0, y0, header)
+            if i == 0 and len(out) == 0 and header.text.lower() not in ref_headers:
+                extract = self.extract(self, self.words.y1 + 10, y0, header)
+            else:
+                extract = self.extract(self, header.y0, y0, header)
             if len(extract.words) > 0:
                 out.append(extract)
         #for extract in out:

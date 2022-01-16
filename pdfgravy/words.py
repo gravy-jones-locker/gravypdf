@@ -138,22 +138,41 @@ class Word(Nest, Nested):
     def get_text(self):
         return ''.join([x.text for x in self])   
 
-    def split_word(self, delim, rm_blanks=False, ignore_pars=False):
+    def split_word(self, delim, rm_blanks=False, ignore_pars=False, max_parts=None,
+    start=None):
         """
         Split the word given a certain delimiter.
         """
         i = 0
+        count = 0
         parts = self.text.split(delim)
+        part = ''
         while i < len(parts):
-            part = parts[i]
+            if start is not None and i <= start:
+                part += delim + parts[i] if part != '' else parts[i]
+                i += 1
+                continue
+            elif start is None:
+                part = parts[i]
             if ignore_pars and '(' in part and ')' not in part:
+                if start is not None:
+                    i -= 1
                 for j, ad_part in enumerate(parts[i+1:], start=1):
                     if ')' in ad_part:
                         part = part + delim + delim.join(parts[i+1:i+j+1])
                         i += j
                         break
+                if start is not None:
+                    i += 1
             if not rm_blanks or part not in [' ', delim, '']:
-                yield self.extract_chars(part)
+                if part.strip():
+                    yield self.extract_chars(part)
+                part = ''
+                count += 1
+            if max_parts and count == max_parts - 1 and i < len(parts):
+                if ''.join(parts[i:]).strip():
+                    yield self.extract_chars(delim.join(parts[i:])) 
+                return
             i += 1
 
     @helper.lazy_property

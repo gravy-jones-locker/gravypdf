@@ -180,6 +180,18 @@ class Nest(MutableSequence, BasePDF):
         min_dist = min([abs(v - getattr(x, attr, '')) for x in self])
 
         return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
+    
+    def basic_sort(self, ytol: int, xtol: int) -> None:
+        """
+        Do a basic in place sort with the tolerances given.
+        """
+        i = 0
+        for i, word in enumerate(self):
+            word = self[i]
+            for j, ref in enumerate(self[i+1:]):
+                if word.y1 - ref.y1 > ytol or ref.x0 - word.x0 > xtol:
+                    break
+                self[i+j], self[i+j+1] = ref, word
 
     @Decorators.rehome
     def flexi_sort(self, fn, tol, **kwargs):
