@@ -1,7 +1,6 @@
 from .nest import Nest, Nested
 from .table import Table
 from .words import Word, Words, Header
-from . import helper
 import numpy as np
 
 class Page:
@@ -29,10 +28,12 @@ class Page:
                                                 'LTRect',
                                                 'LTTextBoxHorizontal',
                                                 'LTTextLineHorizontal',
-                                                'LTChar'
+                                                'LTChar',
+                                                'LTCurve'
                                                 ])
         self.chars = self.get_chars()
         self.text  = self.get_text()
+        self.curves = self.get_curves()
         self.words = self.get_words()
         self.lines = self.get_lines()
         self.boxes = self.get_boxes()
@@ -161,11 +162,27 @@ class Page:
 
     def get_boxes(self):
         return self.objects.filter_attrs(cvttype='LTTextBoxHorizontal')
+    
+    def get_curves(self):
+        cs = self.objects.filter_attrs(cvttype='LTCurve')
+        cs = cs.filter(lambda x: abs(x.height-x.width)<0.2 and x.height+x.width <10)
+        if not cs:
+            return cs
+        def cluster_curves(x, y):
+            if abs((x.height+x.width)-(y.height+y.width)) > 0.1:
+                return False
+            return True
+        cs = cs.cluster(cluster_curves)
+        cs = cs.get_sorted(lambda x: len(x), inv=True)
+        if len(cs) < 5:
+            return Nest()
+        return cs
 
     def get_words(self):
         ws = Words(*[Word(*x._objs, cast=True) for x in self.text], cast=True)
-        ws.sort(key=lambda x: x.y1, reverse=True)
+        ws.basic_sort(ytol=2)
         words = ws.clean()
+        words = words.join_bullets(self.curves)
         words = words.split_fonts().filter(Word.test_alphanum)
         words.lbl_ends()
         return words.filter(lambda x: not x.marks_p)

@@ -37,14 +37,24 @@ class Word(Nest, Nested):
         return self
 
     @Nest.Decorators.set_bbox
-    def _add_chars(self, *ad_chars, prefix=None):
+    def _add_chars(self, *ad_chars, prefix=None, front=False):
         """
         Add characters to the end of a Word object with optional prefix.
         """
         if prefix is not None:
             ad_chars = [*[Char(LTAnno(x)) for x in prefix], *ad_chars]
-        self.extend(ad_chars)
-        self.detail_anno()
+        if not front: 
+            self.extend(ad_chars)
+        else:
+            self[0:0] = ad_chars
+        self.detail_anno()  # TODO need a way to reset font..
+    
+    def _combine(self, *ad_fields, delim: str=None) -> None:
+        """Create a composite from the additional fields and any delimiters""" 
+        for ad_field in ad_fields:
+            if delim is not None:
+                delim = helper.get_delim(self.text, ad_field.text, delim)
+            self._add_chars(*ad_field, prefix=delim) 
 
     @property
     def subs(self):
@@ -253,6 +263,28 @@ class Words(Word, Nested):
         self.apply_nested(Nest.set_bbox)
 
         return self
+
+    @Nest.Decorators.rehome
+    def join_bullets(self, curves):
+        """
+        Wherever there are isolated bullets prepend them to the next word.
+        """
+        i = 0
+        while i < len(self):
+            word = self[i]
+            if i != len(self) - 1 and word.text.strip() in helper.BULLETS:
+                if abs(word.midy - self[i+1].midy) < 6:
+                    word._combine(self[i+1], delim=' ')
+                else:
+                    word = self[i+1] 
+                i += 1
+            else:
+                for curve in curves:
+                    if abs(curve.midy-word.midy)<5 and word.x0-curve.x1<10:
+                        word._add_chars(prefix='• ', front=True)
+                        break
+            yield word
+            i += 1
 
     @Nest.Decorators.rehome
     def split_fonts(self):

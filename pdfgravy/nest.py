@@ -81,11 +81,11 @@ class Nest(MutableSequence, BasePDF):
         self.set_bbox()
     
     @classmethod
-    def _from_sibling(self, sibling):
+    def _from_sibling(cls, sibling):
         """
         Cast between sibling objects.
         """
-        obj = type(self)(*sibling)
+        obj = cls(*sibling)
         obj.copy_meta(sibling)
         return obj
 
@@ -130,7 +130,7 @@ class Nest(MutableSequence, BasePDF):
         """
         Copy meta-attributes across from parent to child.
         """
-        for attr in getattr(self, 'meta_attrs', []):
+        for attr in getattr(parent, 'meta_attrs', []):
             var = getattr(parent, attr)
             setattr(self, attr, var)
 
@@ -181,17 +181,27 @@ class Nest(MutableSequence, BasePDF):
 
         return [x for x in self if abs(v - getattr(x, attr, '')) == min_dist][0]
     
-    def basic_sort(self, ytol: int, xtol: int) -> None:
+    def basic_sort(self, ytol: int=0, xtol: int=0) -> None:
         """
         Do a basic in place sort with the tolerances given.
         """
         i = 0
-        for i, word in enumerate(self):
-            word = self[i]
-            for j, ref in enumerate(self[i+1:]):
-                if word.y1 - ref.y1 > ytol or ref.x0 - word.x0 > xtol:
-                    break
-                self[i+j], self[i+j+1] = ref, word
+        for i in range(len(self)):
+            already_sorted = True
+            for j in range(len(self) - i - 1):
+                word = self[j]
+                ref  = self[j+1]
+                diff_y = word.y1 - ref.y1
+                diff_x = word.x0 - ref.x0 
+                if diff_y > ytol:
+                    continue  # True if ref is below word (within ytol)
+                if -ytol <= diff_y <= ytol:
+                    if diff_x < -xtol:
+                        continue  # True if on same line but word to left of ref
+                self[j], self[j+1] = self[j+1], self[j]
+                already_sorted = False
+            if already_sorted:
+                break
 
     @Decorators.rehome
     def flexi_sort(self, fn, tol, **kwargs):

@@ -36,6 +36,10 @@ class Pdf:
 
             self.load_info(doc)
 
+        self.lines = self.get_lines()
+        self.words = self.get_words()
+        self.fonts = self.get_fonts()
+
     def load_info(self, doc):
         """
         Store bookmark and other helpful information for later use.
@@ -94,16 +98,13 @@ class Pdf:
     def page_w(self):
         self._page_w = stats.median([x.w for x in self.pages])
 
-    @helper.lazy_property
-    def lines(self):
-        self._lines = self.aggregate_elems('lines')
+    def get_lines(self):
+        return self.aggregate_elems('lines')
 
-    @helper.lazy_property
-    def words(self):
-        self._words = self.aggregate_elems('words', Words)
+    def get_words(self):
+        return self.aggregate_elems('words', Words)
 
-    @helper.lazy_property
-    def fonts(self):
+    def get_fonts(self):
         """
         Get stats about fonts from each page then analyse for types.
         """
@@ -135,7 +136,7 @@ class Pdf:
                 header_no = [i for i, s in enumerate(sizes) if s == v["size"]][0]
                 fonts[k]["type"] = f'h{header_no+1}'
 
-        self._fonts = fonts
+        return fonts
 
     def get_headed_sections(self, ref_headers: list):
         """
@@ -159,7 +160,7 @@ class Pdf:
             word.is_spaced = words[i-1].y0 - word.y1 > 10 and (words[i+1].x0 - word.x1 > 15 or word.y0 - words[i+1].y1 > 0)
             word.is_header = word.text.lower() in ref_headers
             word.is_overlined  = any([0 < x.y1-word.y1 < 10 for x in lns])
-            word.is_underlined = any([-5 < x.y1-word.y0 < 5 for x in lns])
+            word.is_underlined = any([-10 < x.y1-word.y0 < 5 for x in lns])
             refs.append(word)
 
         f_refs = refs.cluster(lambda x, y: x.font == y.font and x.is_underlined == y.is_underlined)    
@@ -167,7 +168,8 @@ class Pdf:
         if len(f_refs) == 0:
             font = ''
         else:
-            font = f_refs.get_sorted(lambda x:len(x), inv=True)[0].font
+            f_refs.sort(key=lambda x: len(x), reverse=True)
+            font = f_refs.get_sorted(lambda x:len([y for y in x if y.is_header]), inv=True)[0].font
 
         headers = []
         for i, word in enumerate(refs):
@@ -224,6 +226,7 @@ class PdfExtract:
         :param y0: the exact y0 (bottom) coordinate of the extract.
         :param header: the header at the top of the 
         """
+        self._pdf = pdf
         self.page_w, self.page_h = pdf.page_w, pdf.page_h
         self.fonts = pdf.fonts
         self.words = pdf.words.filter(lambda x: x.y1 < y1 and x.y0 >= y0)
@@ -241,9 +244,6 @@ class PdfExtract:
         """
         nests = [self.words, self.lines]
         for nest in nests:
-            nest.apply_nested(lambda x: x.offset(y=-self.y0))
             nest.set_bbox()
-        if self.header not in self.words:
-            self.header.offset(y=-self.y0)
 
 Pdf.extract = PdfExtract

@@ -1,3 +1,14 @@
+import itertools
+
+def get_delim(txt_i, txt_ii, delim) -> str:
+    cut_len = len(delim) + 1
+    for i, j in itertools.product(range(cut_len+1), range(1, cut_len+1)):
+        for ref_d in [delim[:i], delim[-i:]] if i > 0 else [delim[:i]]:
+            ref_str = txt_i[-j:] + ref_d + txt_ii[:j]
+            if delim not in ref_str:
+                continue
+            return ref_d
+
 def lazy_property(func):
     """
     Lazy property evaluated on first call of decorated method.
@@ -40,3 +51,18 @@ def chk_sys_it(it):
 
 def round_two(x):
     return int(((x + 1) // 2) * 2)
+
+
+BULLETS = [
+    "(cid:5)",
+    "❖",
+    "·",
+    "•",
+    "●",
+    "⚫",
+    "\u25aa",
+    "\u2022",
+    "\u26ab",
+    "",
+    "\uf0b7"
+]
