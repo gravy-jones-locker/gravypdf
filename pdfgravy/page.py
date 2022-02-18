@@ -174,8 +174,6 @@ class Page:
             return True
         cs = cs.cluster(cluster_curves)
         cs = cs.get_sorted(lambda x: len(x), inv=True)
-        if len(cs) < 5:
-            return Nest()
         return cs
 
     def get_words(self):
@@ -184,5 +182,6 @@ class Page:
         words = ws.clean()
         words = words.join_bullets(self.curves)
         words = words.split_fonts().filter(Word.test_alphanum)
+        words = words.split_close()
         words.lbl_ends()
         return words.filter(lambda x: not x.marks_p)

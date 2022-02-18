@@ -128,6 +128,22 @@ class Word(Nest, Nested):
 
                 return self[st_i:-end_i] if end_i > 0 else self[st_i:]
         return self
+    
+    @Nest.Decorators.rehome
+    def rm_bad_chars(self):
+        """
+        Remove 'bad' characters.
+        """
+        i = 0
+        while i < len(self):
+            char = self[i]
+            if char.text not in ['\xa0']:
+                yield char
+            else:
+                while not self[i+1].text.strip():
+                    i += 1
+                yield char
+            i += 1
 
     def detail_anno(self):
         """
@@ -136,8 +152,12 @@ class Word(Nest, Nested):
         for i, char in enumerate(self):
             if char.cvttype != 'LTAnno':
                 continue
-            prev_char = self[i-1]
+            prev_chars = self[:i].filter(lambda x: x.cvttype != 'LTAnno')
             next_chars = self[i:].filter(lambda x: x.cvttype != 'LTAnno')
+            if not prev_chars:
+                prev_char = next_chars[0]
+            else:
+                prev_char = prev_chars[-1]
             if not next_chars:
                 next_char = prev_char
             else:
@@ -185,20 +205,20 @@ class Word(Nest, Nested):
                 return
             i += 1
 
-    @helper.lazy_property
+    @property
     def font(self):
         """
         Find and return the most common font/size in the word.
         """        
-        fonts = [f'{x.caps}{x.font}' for x in self if hasattr(x, 'fontname')]
+        fonts = [f'{x.caps}{x.font}' for x in self if hasattr(x, 'fontname') and x.text.strip()]
         sel = set(fonts)
         if len(sel) == 1:
-            self._font = str(sel).strip('{}\'')
+            return str(sel).strip('{}\'')
 
         count = [(y, len([x for x in fonts if x == y])) for y in sel]
         count.sort(key=lambda x: x[1], reverse=True)
 
-        self._font = count[0][0]
+        return count[0][0]
 
     def is_capitalised(self, thresh=0.6):
         chars = []
@@ -258,11 +278,37 @@ class Words(Word, Nested):
         self.apply_nested(Word.rm_wspace)   # Get rid of leading/trailing wspace
         self.apply_nested(Word.detail_anno) # Detail position/text of 'LTAnno'
         self.apply_nested(Word.rm_double_spaced)
+        self.apply_nested(Word.rm_bad_chars)
 
         # After changes calculate new positional info of each word
         self.apply_nested(Nest.set_bbox)
 
         return self
+    
+    @Nest.Decorators.rehome
+    def split_close(self):
+        """
+        Split any words which have large gaps between them.
+        """
+        i = 0
+        while i < len(self):
+            word = self[i]
+            avg_w = stats.median([x.w for x in word])
+            j = 5  # Start midway through the word
+            offset = 0
+            while j < len(word) - 1:
+                char = word[j]
+                if not char.text.strip():
+                    if char.w > 1.5 * avg_w:
+                        part = word[offset:j]
+                        if part.text.strip():
+                            yield part
+                        offset = j + 1
+                j += 1
+            word = word[offset:]
+            if word:
+                yield word
+            i += 1
 
     @Nest.Decorators.rehome
     def join_bullets(self, curves):
@@ -280,7 +326,7 @@ class Words(Word, Nested):
                 i += 1
             else:
                 for curve in curves:
-                    if abs(curve.midy-word.midy)<5 and word.x0-curve.x1<10:
+                    if abs(curve.midy-word.midy)<5 and 0< word.x0-curve.x1<10:
                         word._add_chars(prefix='• ', front=True)
                         break
             yield word
@@ -366,7 +412,7 @@ class Words(Word, Nested):
         """
         Label the bottomost/page lines as end lines.
         """
-        p_str = r'(?:page|p|^)\.{0,1}\s{0,1}\d+'
+        p_str = r'(?:page|p|^|seite)\.{0,1}\s{0,1}\d+'
         s_ls = sorted(self, key=lambda x:x.y0)
         for i, word in enumerate(s_ls):
             word.p_break = i == len(s_ls) - 1
@@ -399,6 +445,30 @@ class Words(Word, Nested):
         diff_l = sum([abs(x.x0-y.x0) for (x, y) in permutations(self, r=2)])
         diff_r = sum([abs(x.x1-y.x1) for (x, y) in permutations(self, r=2)])
         return diff_l > diff_r
+    
+    @Nest.Decorators.rehome
+    def sort_margin_notes(self, margin, tol):
+        """
+        Arrange notes to the left of the given margin to be contiguous.
+        """
+        i = 0
+        while i < len(self):
+            word = self[i]
+            if word is not None:
+                if word.x0 + tol > margin:
+                    yield word 
+                else:
+                    for j, ad_word in enumerate(self[i+1:]):
+                        if word.y0 - ad_word.y1 > 10:
+                            yield word
+                            break
+                        if ad_word.x0 + tol > margin:
+                            continue
+                        word._combine(ad_word, delim=' ')
+                        yield word
+                        self[j] = None
+                        break
+            i += 1
 
 class Header(Words):
 
