@@ -177,7 +177,7 @@ class Pdf:
                 headers.append(word)
                 continue
             chk_font = word.font == font or self.fonts[word.font]['type'] == 'banner'
-            chk_font = chk_font or ('Bold' in font and font[1:-2] == word.font[1:-2] and self.fonts[font]["size"]) - self.fonts[word.font]["size"] < 2
+            chk_font = chk_font or ('Bold' in font and font[1:-2] == word.font[1:-2]) and (self.fonts[font]["size"] - self.fonts[word.font]["size"] < 2)
             if headers and not chk_font:
                 prev_words = self.words.filter(lambda x: x.y0 > word.y1 and x.y1 < headers[-1].y0)
                 if word.font in set([x.font for x in prev_words]):

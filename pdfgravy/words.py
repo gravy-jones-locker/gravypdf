@@ -111,6 +111,19 @@ class Word(Nest, Nested):
 
         return self[i:i+len(char_str)]
 
+        """  # Doesn't work for some reason..
+        i = self.text.find(char_str)
+        ref_str = ''
+        j = 0
+        while i + j < len(self):
+            char = self[i+j]
+            ref_str += char.text
+            if ref_str == char_str:
+                break
+            j += 1
+        return self[i:i+j]
+        """
+
     @Nest.Decorators.set_bbox
     def rm_wspace(self, ad_ls=[]):
         """
