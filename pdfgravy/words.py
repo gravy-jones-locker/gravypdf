@@ -157,6 +157,19 @@ class Word(Nest, Nested):
                     i += 1
                 yield char
             i += 1
+        
+    @Nest.Decorators.rehome
+    def replace_chars(self, sub: str, repl: str):
+        """
+        Replace the given char with the replacement char.
+        """
+        for i, char in enumerate(self):
+            if char.text == sub:
+                if i == 0 or i == len(self) - 1:
+                    continue
+                char = Char(LTAnno(repl))
+                char.set_details(self[i-1], self[i+1])
+            yield char
 
     def detail_anno(self):
         """
@@ -292,11 +305,22 @@ class Words(Word, Nested):
         self.apply_nested(Word.detail_anno) # Detail position/text of 'LTAnno'
         self.apply_nested(Word.rm_double_spaced)
         self.apply_nested(Word.rm_bad_chars)
+        self.replace_spaces()
 
         # After changes calculate new positional info of each word
         self.apply_nested(Nest.set_bbox)
 
         return self
+
+    def replace_spaces(self):
+        """
+        Replace suspicious space characters with normal spaces.
+        """
+        count_spaces = self.text.count(' ')
+        for sub in ['\t']:
+            if self.text.count(sub) > count_spaces:
+                self.apply_nested(Word.replace_chars, sub, ' ')
+        pass
     
     @Nest.Decorators.rehome
     def split_close(self):
