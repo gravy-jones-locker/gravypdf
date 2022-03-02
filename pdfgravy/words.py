@@ -8,6 +8,8 @@ import numpy as np
 
 class Word(Nest, Nested):
 
+    meta_attrs = ['font']
+
     def __str__(self):
         return self.text
 
@@ -48,6 +50,7 @@ class Word(Nest, Nested):
         else:
             self[0:0] = ad_chars
         self.detail_anno()  # TODO need a way to reset font..
+        self.set_font()
     
     def _combine(self, *ad_fields, delim: str=None) -> None:
         """Create a composite from the additional fields and any delimiters""" 
@@ -231,20 +234,21 @@ class Word(Nest, Nested):
                 return
             i += 1
 
-    @property
-    def font(self):
+    def set_font(self):
         """
         Find and return the most common font/size in the word.
         """        
         fonts = [f'{x.caps}{x.font}' for x in self if hasattr(x, 'fontname') and x.text.strip()]
         sel = set(fonts)
         if len(sel) == 1:
-            return str(sel).strip('{}\'')
+            self.font = str(sel).strip('{}\'')
+            return self
 
         count = [(y, len([x for x in fonts if x == y])) for y in sel]
         count.sort(key=lambda x: x[1], reverse=True)
 
-        return count[0][0]
+        self.font = count[0][0]
+        return self
 
     def is_capitalised(self, thresh=0.6):
         chars = []
@@ -305,6 +309,7 @@ class Words(Word, Nested):
         self.apply_nested(Word.detail_anno) # Detail position/text of 'LTAnno'
         self.apply_nested(Word.rm_double_spaced)
         self.apply_nested(Word.rm_bad_chars)
+        self.apply_nested(Word.set_font)
         self.replace_spaces()
 
         # After changes calculate new positional info of each word

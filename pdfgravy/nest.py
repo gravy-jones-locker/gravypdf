@@ -270,18 +270,20 @@ class Nest(MutableSequence, BasePDF):
             yield sub_elem        
     
     @Decorators.rehome
-    def get_intervals(self, fn):
+    def get_intervals(self, fn, inclusive=False):
         """
         Return the intervals between the points where fn evaluates to True.
         """
         offset = 0
         for i, elem in enumerate(self):
-            if fn(elem):
+            if fn(elem, i):
                 part = self[offset:i] 
                 if part:
                     yield part
-                offset = i + 1
-        rem =self[offset:i+1]
+                offset = i  # Includes the current header in the next part 
+                if not inclusive:
+                    offset += 1  # Skips the current header in the next part
+        rem = self[offset:i+1]
         if rem:
             yield rem
 

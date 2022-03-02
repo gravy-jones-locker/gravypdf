@@ -184,4 +184,5 @@ class Page:
         words = words.split_fonts().filter(Word.test_alphanum)
         words = words.split_close()
         words.lbl_ends()
+        words = words.apply_nested(Word.set_font)
         return words.filter(lambda x: not x.marks_p)
