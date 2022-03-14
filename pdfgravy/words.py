@@ -178,11 +178,14 @@ class Word(Nest, Nested):
         """
         Add positional/font/text info to all 'LTAnno' chars.
         """
+        def has_x0(char):
+            return char.cvttype != 'LTAnno' and hasattr(char, 'x0')
+
         for i, char in enumerate(self):
-            if char.cvttype != 'LTAnno':
+            if has_x0(char):
                 continue
-            prev_chars = self[:i].filter(lambda x: x.cvttype != 'LTAnno')
-            next_chars = self[i:].filter(lambda x: x.cvttype != 'LTAnno')
+            prev_chars = self[:i].filter(has_x0)
+            next_chars = self[i+1:].filter(has_x0)
             if not prev_chars:
                 prev_char = next_chars[0]
             else:
